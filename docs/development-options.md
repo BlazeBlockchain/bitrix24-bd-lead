@@ -1,29 +1,53 @@
 # Development Options — Where Should `bitrix24-bd-lead` Live?
 
-**Project:** `bitrix24-bd-lead` (creates Contact + Deal + 3 follow-up Tasks for B2B outreach)
+**Project:** `bitrix24-bd-lead` — AI-native BD assistant that creates an enriched Contact + Deal + 3 follow-up Tasks for B2B outreach, with per-user memory of past leads
 **Date:** 2026-05-25
 **Author:** Bojan Bartoniček
 **Companion docs:** [`market_research.md`](./market_research.md), `project_kanban.md`
 
 ---
 
+## 0. Product Premise (load-bearing)
+
+Three constraints shape every architectural decision below:
+
+1. **Target buyer is non-technical.** Croatian/EU SMB BD reps, sales managers, founders doing their own outreach. They cannot reason about webhooks, OAuth scopes, or CRM data models. Onboarding must be: *sign up → connect CRM → paste a name → magic happens*.
+2. **AI is the selling point, in v1.** Not a v2 feature. The pitch is "paste a name and email, get an enriched lead with a personalized 3-step follow-up plan that remembers everything you've done before." Without AI we are a glorified form filler and indistinguishable from CRM-native macros.
+3. **We need per-user memory.** The product gets smarter per user the more they use it (their writing style, their typical follow-up cadence, which industries they target, which deals they won). This requires a backend with persistent state — not a stateless extension.
+
+These force a **backend-on-VPS** architecture, modelled on [`../vanguard-game`](../../vanguard-game/) (Node + Python + Postgres + Redis + Docker Compose, deployed to our own VPS). LLM inference uses cheap models — **Gemini 2.5 Flash primary, Claude Haiku 4.5 fallback** — to keep per-lead cost in the ~$0.001–0.01 range.
+
+---
+
 ## 1. Executive Summary
 
-The MCP server today is a **local-first developer tool** — Claude (or any MCP client) calls our server, which calls the Bitrix24 REST webhook. That's the easiest thing to keep building, but it ships to almost nobody outside the people who already run an MCP client.
+The MCP server is the engine. Around it we need to wrap a **product**, not a developer tool. Given the premises in §0 (non-technical buyer, AI-first selling point, per-user memory), every viable path needs the same backend; only the *client* differs.
 
-To turn the prototype into something a non-technical BD person can use daily, we have five credible distribution paths:
+**Required infra (all paths):**
+- **Backend on VPS** — Node + Python + Postgres + Redis + Docker Compose (mirror `../vanguard-game`). Hosts: auth, per-user memory, CRM token vault, LLM proxy, billing.
+- **LLM proxy** — calls Gemini 2.5 Flash (primary) and Claude Haiku 4.5 (fallback). We hold the API keys; users never see them.
+- **Per-user memory store** — Postgres for structured lead history + a small vector index (pgvector) for semantic recall of prior outreach.
 
-| Path | Time-to-first-user | Reach | Maintenance | Recommendation |
+**Client distribution paths (the actual choice):**
+
+| Path | Time-to-first-user | Fit for non-technical buyer | AI integration ease | Recommendation |
 |---|---|---|---|---|
-| **A. Keep as MCP server (status quo)** | already shipped | tiny (MCP users only) | very low | Keep as the *engine* |
-| **B. CRM-native app** (HubSpot/Bitrix24 marketplaces) | 6–10 weeks per CRM | large (marketplace traffic) | medium-high (per-CRM cert) | Phase 2 / opportunistic |
-| **C. Browser extension** (Chrome + Firefox, MV3) | 4–6 weeks | broad, **platform-agnostic** | medium (MV3 quirks, two store reviews) | **★ Recommended primary** |
-| **D. Standalone web app** (login → connect CRM → paste lead) | 6–8 weeks | self-served via own domain | high (auth, hosting, billing) | Defer to phase 3 |
-| **E. Slack / Teams bot** | 3–4 weeks | niche (where the BD person lives) | low | Optional add-on |
+| **A. MCP server** | shipped | poor (devs only) | trivial | Keep as engine + dev surface |
+| **B. CRM-marketplace app** | 6–10 wks per CRM | excellent (inside the CRM) | medium (UI extension constraints) | Phase 3 / opportunistic |
+| **C. Browser extension** (MV3, Chrome + Firefox) | 4–6 wks after backend | great (sits in CRM tab + LinkedIn) | medium (MV3 service-worker quirks) | **★ Primary client v1** |
+| **D. Standalone web app** | 4–6 wks after backend | great (own demo URL, easy onboarding) | trivial (same origin as backend) | **★ Ship alongside extension** |
+| **E. Slack / Teams bot** | 3–4 wks | niche | trivial | Phase 3 add-on |
 
-**Decision: ship a multi-CRM browser extension first.** Rationale: we want to be **the BD follow-up tool, wherever the BD person works** — not "the HubSpot tool" or "the Bitrix24 tool." A marketplace-first strategy locks us to one CRM ecosystem at a time and costs ~6–10 weeks per CRM in certification. The extension covers every CRM the prospect happens to use from a single codebase, ships in ~4–6 weeks, and meets the BD rep in the tab they already have open.
+**Decision:** Build the backend first (single VPS, vanguard-game pattern). Then ship **both the web app *and* the extension on top of it** — the web app is the demo/onboarding surface (login, connect CRM, "try it now" form, billing); the extension is the daily-driver surface that lives where the BD rep already works. They share the backend, share the AI, share the per-user memory.
 
-**Sequencing:** Keep (A) as the canonical engine. Refactor `src/client.ts` into a `CrmClient` interface. Ship (C) covering Bitrix24 + HubSpot first, add Pipedrive behind the same UI. Treat (B) as **opportunistic** — only spin up a marketplace listing if extension traction in that CRM justifies it. Defer (D) and (E).
+**Why both:** The web app is required anyway for sign-up, OAuth callback, billing, and account management. Once that exists, the extension is a thin client over the same backend — not a duplicated codebase. Skipping the web app would force us to do all of those things inside Chrome's popup, which is hostile UX for a non-technical buyer.
+
+**Sequencing:**
+1. **Backend + AI layer + web app v1** (~5–7 weeks) — sign-up, Bitrix24 + HubSpot CRM connection, paste-a-lead form, AI enrichment + 3-task plan, billing stub.
+2. **Browser extension v1** (~2–3 weeks after backend stabilizes) — same backend, content-script trigger on CRM/LinkedIn tabs.
+3. **Marketplace apps + Slack bot** — opportunistic, driven by where paying users actually came from.
+
+The MCP server (A) stays as the reference implementation and the surface for engineers/AI agents — same `CrmClient` interface, different transport.
 
 ---
 
@@ -100,12 +124,19 @@ This means turning the project into an app that installs *inside* the CRM itself
   - Settings page for per-CRM auth (Bitrix24 webhook URL, HubSpot OAuth)
 - **Out of scope for v1:** AI enrichment, multi-user workspaces, billing, in-page DOM scraping of CRM pages (paste-first interaction only).
 
-### D. Standalone web app
+### D. Standalone web app — **CHOSEN, ships alongside extension**
 
-- **What it is:** `bdlead.app` (or similar). User signs in, connects HubSpot/Pipedrive/Bitrix24 via OAuth, pastes a lead's name + email + LinkedIn URL, hits Generate.
-- **Pros:** Full control over UX, billing, and AI enrichment. Easy to layer on a paid tier.
-- **Cons:** We're now an auth provider + hosting target + billing target. Significantly more surface area than the other paths. The BD rep has to switch tabs.
-- **Verdict:** Defer until we have demand and revenue signal from (B) or (C). If we do build it, reuse the same `CrmClient` interface — it's literally another transport for the same engine.
+- **What it is:** `bdlead.app` (or similar). User signs in, connects HubSpot/Bitrix24 via OAuth or webhook, pastes a lead's name + email + LinkedIn URL, sees AI-enriched lead preview, clicks "Push to CRM with 3 follow-ups."
+- **Why now required:** §0 says the buyer is non-technical and AI is the selling point. Both demand a place to *demo* the product before install — that's the web app. It's also where sign-up, OAuth callbacks, billing, and account settings live.
+- **Pros:**
+  - Full control over UX and AI presentation — we can render an enrichment summary, suggested email opener, follow-up plan rationale, the whole sales-y experience.
+  - Easy to demo: a single URL. No extension install required to evaluate.
+  - Same origin as backend → no cross-origin token shuffling.
+  - Required for billing and account management anyway.
+- **Cons:**
+  - We're now an auth provider + hosting target + billing target. Operational surface area is real.
+  - BD rep has to switch tabs for daily use — which is exactly why the extension exists on top.
+- **Stack (mirrors `../vanguard-game`):** Node (Fastify or Hono) + Python worker for LLM orchestration + Postgres + Redis + Docker Compose on a single VPS. Frontend: React/Vite or Next.js, whichever the team prefers.
 
 ### E. Slack / Teams bot
 
@@ -130,41 +161,85 @@ The choice depends on which constraint binds:
 
 ---
 
-## 5. Recommendation — Browser Extension First
+## 5. Recommendation — AI-Native Backend + Web App + Extension
 
-We are betting on the **browser extension** as the primary distribution path. The principle: be **platform-agnostic**. The BD rep should not care which CRM their org runs; we should work on all of them.
+We are building an **AI-native BD assistant**. AI is the selling point. The product needs persistent per-user memory, and the buyer is non-technical. That mandates a backend; the only real choice is which clients sit on top of it.
 
-1. **Refactor `src/client.ts` into a `CrmClient` interface first** (already proposed in `market_research.md` §3). Every path needs this; the extension *requires* it.
-2. **Phase 1 (now → ~6 weeks):** Ship the Chrome + Firefox MV3 extension v1 covering **Bitrix24 + HubSpot**.
-   - Bitrix24 first because the integration is already done.
-   - HubSpot next because of free-tier reach (still ~200k+ active free users despite the Sept 2024 contact cap).
-   - Both stores submitted in parallel.
-3. **Phase 2 (weeks 6–10):** Add the **Pipedrive** adapter behind the same extension. No new UI, just a new adapter — proves the platform-agnostic thesis cheaply.
-4. **Phase 3 (after first ~10 paying users):** Based on where activations came from, decide whether to:
-   - (a) spin up an opportunistic marketplace listing for the dominant CRM, or
-   - (b) build the standalone web app for buyers who can't install extensions (locked-down enterprise environments), or
-   - (c) keep adding CRM adapters to the extension.
+### Architecture (target state)
 
-**The MCP server stays.** It remains the engine and the reference implementation for engineers/AI agents — same `CrmClient` interface, different transport.
+```
+┌─────────────────────────────┐  ┌────────────────────────┐  ┌─────────────────────────┐
+│  Web app (bdlead.app)       │  │  Browser extension     │  │  MCP server (existing)  │
+│  • signup / OAuth / billing │  │  • content script on   │  │  • engineers / agents   │
+│  • paste-a-lead demo UI     │  │    CRM tab + LinkedIn  │  │  • same CrmClient       │
+│  • account & memory mgmt    │  │  • thin client → API   │  │                         │
+└──────────────┬──────────────┘  └───────────┬────────────┘  └────────────┬────────────┘
+               │                             │                            │
+               └─────────────────────────────┴────────────────────────────┘
+                                             │
+                              ┌──────────────▼───────────────┐
+                              │  Backend (VPS, vanguard-game │
+                              │  pattern)                    │
+                              │  • Node + Python workers     │
+                              │  • Postgres (memory)         │
+                              │  • Redis (queue/cache)       │
+                              │  • LLM proxy → Gemini Flash  │
+                              │    primary, Haiku fallback   │
+                              │  • CrmClient adapters        │
+                              │    (Bitrix24, HubSpot, …)    │
+                              │  • Token vault per user      │
+                              └──────────────────────────────┘
+```
+
+### Sequencing
+
+1. **Phase 0 (now → 1 week):** Refactor `src/client.ts` into a `CrmClient` interface inside the existing MCP repo. This becomes the adapter contract used by *all* paths.
+2. **Phase 1 — Backend + AI + Web app (~5–7 weeks):**
+   - Spin up VPS deployment mirroring `../vanguard-game` (Docker Compose, Postgres, Redis).
+   - LLM proxy with Gemini 2.5 Flash primary + Haiku 4.5 fallback. Budget guardrails per user.
+   - Per-user memory schema: leads, outreach history, user writing style profile, follow-up cadence preferences.
+   - CRM adapters: Bitrix24 + HubSpot.
+   - Web app: sign-up, OAuth/webhook setup, paste-a-lead demo UI showing AI enrichment + 3-task plan, billing stub (Stripe test mode).
+3. **Phase 2 — Browser extension (~2–3 weeks):**
+   - Chrome + Firefox MV3 thin client over the same backend.
+   - Detects host (CRM page or LinkedIn), pre-fills the paste form, calls backend, confirms.
+   - No new business logic on the client.
+4. **Phase 3 — Opportunistic distribution (post-launch):** Marketplace listings, Slack/Teams bot, Pipedrive adapter — driven by where paying users came from.
+
+### Why AI from day 1 is the bet
+
+- **Differentiation.** Without AI we are a form filler. CRM marketplaces have dozens of those, free.
+- **Memory compounds.** Each lead the user puts through the system improves their personalised opener, cadence, and tone-match — switching cost grows over time.
+- **Cost is contained.** Gemini 2.5 Flash + Haiku 4.5 keep marginal cost per lead well under $0.01. Even a €5/mo plan covers ~500 leads worth of inference comfortably.
+
+The MCP server stays as the engine/reference and the surface for the engineer/AI-agent segment.
 
 ---
 
 ## 6. Risks & Caveats
 
-- **HubSpot's Sept 2024 contact cap (1,000)** means our free-plan customers will burn through it fast if they're heavy outbound — this affects pricing positioning more than which build path we pick, but raises the chance buyers convert to paid HubSpot, which changes which features our app can rely on.
-- **MV3 service workers terminate when idle** — any "watch this CRM page and auto-create" feature must use event-driven triggers, not long-lived workers. Our current 3-API-call flow fits; future enrichment work may not.
-- **Marketplace review cycles are unpredictable** — budget 2–4 weeks of buffer per submission and don't put a customer-promised date inside that window.
-- **Token storage liability:** Whether we hold OAuth tokens server-side (paths B/D) or in `chrome.storage` (C), we're now a security-relevant component. Write a one-page security note before the first external user.
-- **Cannibalisation risk:** If the browser extension is good enough, customers may never install the in-CRM app — meaning we paid for marketplace cert without ROI. Track install attribution from day one.
+- **We're now custodians of CRM tokens AND LLM keys AND customer data.** This is a real security perimeter. Mandatory before first external user: encrypted token storage (per-user envelope encryption), audit log on memory reads, GDPR-aligned data retention policy, one-page security note.
+- **LLM cost surprises.** Gemini Flash / Haiku are cheap but a runaway prompt loop or a user pasting a 50k-token page can spike a bill. Hard per-user token budget + per-request size cap from day 1.
+- **Model quality at the cheap end.** Gemini 2.5 Flash and Haiku 4.5 are good for enrichment and short follow-ups, less good for nuanced lead research. If output quality is the differentiator, we may need a "Pro" tier that calls Sonnet 4.6 for the same task — design the LLM proxy to switch models per request from day 1.
+- **HubSpot's Sept 2024 contact cap (1,000)** means our heavy users will burn through their free HubSpot fast — pricing pitch should acknowledge this.
+- **MV3 service workers terminate when idle** — the extension must call the backend synchronously and not try to do long work locally. Fine, since AI runs server-side anyway.
+- **Marketplace review cycles** — only relevant when we get to Phase 3; budget 2–4 weeks buffer per submission.
+- **VPS operational load.** Mirroring vanguard-game keeps the stack familiar but we now have two services to keep up, patch, and back up. Plan a shared ops runbook.
 
 ---
 
 ## 7. Open Questions
 
-1. **Which two CRMs ship in extension v1?** Default: Bitrix24 (integration done) + HubSpot (reach). Swap HubSpot for Pipedrive if the team's warmest leads are Pipedrive shops.
-2. **Free or paid from day one?** Extension users expect free, but charging early teaches us pricing faster. Recommend: free v1 with a clear "Pro" placeholder; introduce paid in v2 once we know what feature pulls conversion.
-3. **AI enrichment in v1, or v2?** Adding "auto-research the lead's company" turns this from a 3-API-call tool into an LLM product — affects MV3 service-worker design, bundle size, privacy disclosures. Recommend: **defer to v2**.
-4. **OAuth or webhook for HubSpot?** OAuth = smoother UX but requires us to run an OAuth callback service (small backend). Webhook/private-app token = no backend, but uglier setup. Recommend: ship webhook v1, add OAuth in v2.
+1. **Which two CRMs ship in v1?** Default: Bitrix24 (integration done) + HubSpot (reach). Swap HubSpot for Pipedrive if the team's warmest leads are Pipedrive shops.
+2. **Pricing model.** Cheap LLMs let us hit a profitable €5–€9/user/mo at modest volume. Three credible shapes:
+   - (a) Free tier with N AI enrichments/month, paid above
+   - (b) Trial only (14 days), then paid
+   - (c) Flat paid from day 1, no free
+   Recommendation: **(a)** — free tier doubles as our demo, and our marginal cost is low enough to absorb tyre-kickers.
+3. **What does the AI actually produce in v1?** Minimum: (i) one-paragraph company snapshot from public signals, (ii) personalized first-email opener in the user's tone, (iii) the 3-task follow-up plan with specific actions and timing. Anything more (multi-channel sequences, reply detection, A/B variants) is v2.
+4. **Memory scope.** What do we persist per user? Recommendation: prior leads + outcomes, user tone/style profile derived from their accepted emails, industry/ICP preferences. Explicitly *not*: contents of CRM beyond what the user sent through our tool (avoids the "we read your whole CRM" privacy fight).
+5. **Hosting.** Same VPS as `vanguard-game` (shared infra, faster ops), or a dedicated one? Recommendation: dedicated VPS once we have a paying user; share infra during dev.
+6. **Model fallback policy.** Gemini Flash primary; when does Haiku 4.5 take over — only on Gemini outage, or also for specific task types where Haiku is stronger? Decide before LLM proxy ships.
 
 ---
 
