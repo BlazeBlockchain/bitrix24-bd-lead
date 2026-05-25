@@ -27,6 +27,33 @@ So: the MCP tool's value (auto-create lead skeleton + 3 follow-ups) should be po
 
 ---
 
+## 1a. Regional Market Context — Central Europe & Africa
+
+Our two target regions have very different CRM landscapes. This shapes which adapters we ship first.
+
+### Central Europe / CIS
+
+- **Bitrix24 is the regional default.** ~**19.12% global CRM market share** in the dataset surveyed, nearly 2× its closest non-enterprise competitor. ~**22,000–23,000 active domains** as of early 2025, with the steepest adoption curve running 2015–2022. Heavy concentration in Russian-speaking and CEE markets (confirmed by high Yandex.Metrika co-installation rates). (Source: technologychecker.io/technology/bitrix24, 2026.)
+- **HubSpot is the upgrade path.** Migration data shows HubSpot gained net customers from Bitrix24 (114 in, 87 out) — buyers outgrowing Bitrix24's all-in-one bundle move to HubSpot or Salesforce.
+- **Implication for us:** Shipping Bitrix24 first gives us the fastest path to a paying CEE customer (integration already done + buyers already there). HubSpot adapter then captures the upgrade migration.
+
+### Africa (South Africa benchmark — best-documented African CRM market)
+
+- **CRM share (South Africa, 2026):** Zendesk **20.7%**, ActiveCampaign **14.7%**, HubSpot **13%**, Zoho **5.4%**. (Source: maximizer.com Best CRM Software in South Africa 2026.)
+- **MEA region:** Latin America + Middle East & Africa together projected at **~$18B CRM market value by 2030** — fast-growing, under-served. (Source: resonatehq.com HubSpot Market Share 2026.)
+- **Local support footprint:** Only **HubSpot, Salesforce, and Microsoft Dynamics** have South Africa–based local support. Zoho, Pipedrive, Monday — international-only support. This is a real friction point for African SMB buyers and a tailwind for HubSpot in the region.
+- **HubSpot global growth:** ~**20–25%/yr**, among the fastest of any major CRM vendor; strongest in SMB and mid-market (10–2,000 employees).
+- **Implication for us:** HubSpot is the right second adapter for the Africa wedge. Zoho is worth a Phase 2 look given its price-sensitive-SMB positioning, even at low share.
+
+### Regional pick summary
+
+| Region | Dominant CRM | Our v1 adapter | Why |
+|---|---|---|---|
+| Central Europe / CIS | Bitrix24 (~19% global, ~22k domains) | **Bitrix24** | Already integrated, dominant locally, free-tier wedge via 100-task cap |
+| Africa (SA + MEA) | Fragmented; HubSpot growing fastest with local support | **HubSpot** | 13% SA share, only major CRM with local SA support, 20–25% YoY growth |
+
+---
+
 ## 2. CRM Alternatives Evaluated
 
 Scoring axes (1–5):
@@ -94,34 +121,6 @@ Scoring axes (1–5):
 
 ---
 
-## 3. Recommendation
-
-**Build a CRM abstraction layer and ship HubSpot + Bitrix24 adapters first; add Pipedrive next.**
-
-Concretely, refactor `src/client.ts` into:
-
-```
-src/
-  crm/
-    types.ts          # shared CrmContact, CrmDeal, CrmTask, CrmClient interface
-    bitrix24.ts       # existing impl, behind the interface
-    hubspot.ts        # new adapter
-    pipedrive.ts      # new adapter
-  index.ts            # picks adapter from env var CRM_PROVIDER
-```
-
-The implementation plan, Trello board design, and seed cards for the 3-person team live in [`project_kanban.md`](./project_kanban.md).
-
----
-
-## 4. Open Questions
-
-Before kicking off, decide:
-
-1. **Which CRM is the *first* prospect target after Bitrix24?** Recommended HubSpot, but if your warmest leads are on Pipedrive, swap epic priority.
-2. **Self-hosted option (EspoCRM) in scope or out?** Affects sovereignty pitch for EU/regulated buyers but doubles port effort. Recommend deferring to Q3.
-
----
 
 ## References
 
@@ -140,6 +139,13 @@ Primary API docs:
 - Attio 2026 free-plan caps (3 users / 50k records / 3 objects): https://attio.com/pricing/eur, https://www.stacksync.com/blog/attio-crm-2025-review-features-pros-cons-pricing
 - Bitrix24 2026 free plan overview: https://www.bitrix24.com/prices/
 
+Regional market data (retrieved 2026-05-25):
+- Bitrix24 global share & domain footprint: https://technologychecker.io/technology/bitrix24
+- HubSpot 2026 market share & growth: https://www.resonatehq.com/blog/hubspot-market-share
+- Best CRM Software in South Africa 2026 (regional share, local support): https://www.maximizer.com/blog/best-crm-software-south-africa/
+- Top CRM Statistics 2026: https://www.sellerscommerce.com/blog/crm-statistics/
+
 ## Changelog
 
 - **2026-05-22** — Refreshed free-tier and pricing data for HubSpot (Sept 2024 contact cap), Pipedrive (July 2025 plan rename), Attio (3-object free-plan ceiling), and Bitrix24 (100-task free cap clarified). Earlier version inaccurately stated Bitrix24 tasks required a paid plan; the gate is the 100-task ceiling, not the feature itself.
+- **2026-05-25** — Added §1a Regional Market Context covering Central Europe/CIS and Africa: Bitrix24 ~19% global share + ~22k active domains concentrated in CEE/CIS; SA CRM breakdown (HubSpot 13%, Zoho 5.4%, Zendesk 20.7%); $18B MEA market projection by 2030. Regional adapter picks tied explicitly to these numbers — Bitrix24 for CEE wedge, HubSpot for Africa.
