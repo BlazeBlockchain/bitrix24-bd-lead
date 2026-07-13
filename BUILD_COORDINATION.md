@@ -84,7 +84,9 @@
 - Agents for this loop: New Implementer (worktree ID 019f5d88-ceaa-7682-9621-b110846f88f7), Reviewer (019f5d88-e126-7ad1-973e-c1f693bae38b), Tester/Committer (019f5d88-f0e0-7e73-b6f5-c93299df0160).
 - Keep informed: Re-read this file + T001 artifacts before touching code. No breaking changes to existing Bitrix or CrmClient contract.
 
-**T002 agents spawned and running (as of 2026-07-14).** Implementer started reading files. Follow same loop: implement in worktree, reviewer scrutinizes, tester verifies+preps commit. Update this file.
+**T002 agents spawned and running (as of 2026-07-14).** Implementer delivered in worktree (hubspot.ts + index.ts barrel/selector + py update + coord append). Tester ran (found not-ready at snapshot time, created TEST_REPORT_T002.md, verified existing Bitrix/CrmClient no-breakage + expected HubSpot shapes via mocks). Coordinator synced + re-verified (build clean, sims: associations, hs_timestamp=number ms, polymorphic execute). Committed 261ffe2.
+
+T002 COMPLETE. CrmClient now has Bitrix + HubSpot. Ready for T003 (full wiring), T004 backend, or T008 orchestration reuse.
 
 **Open clarifications from loop (Coordinator to resolve with user if needed):**
 - Python contract location (still in specs/.../contracts/ for now; move when backend/ created in T004?).
