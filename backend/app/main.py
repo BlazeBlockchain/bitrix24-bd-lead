@@ -9,17 +9,16 @@ Mirrors vanguard-game/backend/app/main.py patterns:
 
 Provides:
 - GET /api/health
-- POST /api/leads/push  (stub that accepts lead input + exercises CrmClient)
+- POST /api/leads/push  (auth protected; delegates to T008 lead_service for exact CrmClient flow)
 
-T005: basic auth/JWT stub added. Protected dependency get_current_user.
- /push now requires/uses auth (Authorization: Bearer or debug fallback to settings).
-CRM tokens (for create_crm_client) still via ?token query or settings for demo (separate concern).
+T005: basic auth/JWT stub + protected dep.
+T008: orchestration extracted to services/lead_service.py (create_lead_with_followups).
+CRM tokens via ?token or settings (demo); create_crm_client called from service.
 """
 
 import base64
 import json
 import logging
-from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import FastAPI, Query, HTTPException, Depends, status
@@ -29,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.database import init_db, close_db, get_db
-from app.adapters.crm import create_crm_client, CrmClient  # type: ignore
+from app.services.lead_service import create_lead_with_followups
 
 logger = logging.getLogger(__name__)
 
@@ -155,10 +154,12 @@ async def health_check():
     return {"status": "ok", "version": settings.APP_VERSION, "provider_default": settings.DEFAULT_CRM_PROVIDER}
 
 
-# ─── Stub lead input (subset of BdLeadSchema from src/tool.ts; full in T008) ────
+# ─── Stub lead input (subset of BdLeadSchema from src/tool.ts; orchestration in T008; full models T009) ────
 
 class LeadPushInput(BaseModel):
-    """Minimal lead input for stub /push. Matches core fields from contracts + tool.ts."""
+    """Minimal lead input for stub /push. Matches core fields from contracts + tool.ts.
+    Passed to create_lead_with_followups (T008 service).
+    """
     company_name: str = Field(..., min_length=1)
     deal_name: str = Field(..., min_length=1)
     contact_name: str = Field(..., min_length=1)
@@ -170,13 +171,11 @@ class LeadPushInput(BaseModel):
     notes: str = Field(default="stub notes")
 
 
-# Date helpers (stub duplication of tool.ts; centralize in T008 orchestration)
-def _add_days(n: int) -> str:
-    d = datetime.utcnow() + timedelta(days=n)
-    return d.strftime("%Y-%m-%d")
+# Date helpers moved to services/lead_service.py (T008 orchestration centralization).
+# Stub duplication of tool.ts logic eliminated.
 
 
-# ─── Stub /push route that uses a CrmClient (now auth-protected T005) ──────────
+# ─── Stub /push route (auth-protected T005; delegates to T008 orchestration) ──
 
 @app.post("/api/leads/push")
 async def push_lead(
@@ -186,17 +185,19 @@ async def push_lead(
     current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
-    Stub endpoint: takes lead input and exercises CrmClient (contact+deal+3tasks).
+    Stub endpoint: takes lead input and exercises full CrmClient flow via orchestration service.
 
-    T005 auth: now protected via get_current_user (Authorization: Bearer or DEBUG fallback).
-    current_user available here (stub dict per data-model; will drive per-user CRM token lookup later).
+    T005 auth: protected via get_current_user.
+    current_user available (will drive per-user CRM token lookup in T006+).
 
-    CRM token resolution unchanged: ?token query or settings (T006 vault will replace).
-    Keep using create_crm_client(provider, token) as required.
+    Delegates to create_lead_with_followups (T008) which does:
+      createContact -> createDeal(with contactId) -> 3x createTask(due +4/9/14, dealId)
+    using create_crm_client(provider, token) exactly.
 
-    In prod: protected + full orchestration (T008) + memory/LLM.
+    CRM token resolution: ?token or settings (T006 vault later).
+    Stub notes/LLM comments retained for later enrichment (T007/T009).
 
-    Returns the ids (like executeBdLead result shape).
+    Returns ids shape (like executeBdLead + extras).
     """
     logger.debug(f"push_lead invoked by current_user={current_user.get('email')} provider={provider}")
 
@@ -213,68 +214,23 @@ async def push_lead(
             detail=f"No token configured for provider '{provider}'. Pass ?token=... or set in .env (stub mode).",
         )
 
+    # Token resolution (unchanged; T006 vault will replace). Service uses create_crm_client(provider, token) exactly.
     try:
-        client: CrmClient = create_crm_client(provider, token)
+        # Delegate exact orchestration to T008 service (contact->deal->3x task with +4/9/14 dates).
+        # Keeps CrmClient usage exact inside service. Stub notes retained for LLM later.
+        core_result = await create_lead_with_followups(lead, provider, token, current_user)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to create CRM client: {e}")
-
-    # Map to Crm* (minimal; full comments construction in orchestration)
-    try:
-        contact = await client.createContact({
-            "name": lead.contact_name,
-            "role": lead.contact_role,
-            "company": lead.company_name,
-        })
-
-        deal_comments = (
-            f"Signal: {lead.signal}\n\n"
-            f"Pain Point: {lead.pain_point}\n\n"
-            f"Email Subject: {lead.email_subject}\n\n"
-            f"Notes:\n{lead.notes}"
-        )
-        deal = await client.createDeal({
-            "title": lead.deal_name,
-            "contactId": contact["id"],
-            "comments": deal_comments,
-        })
-
-        # 3 tasks (same cadence as TS tool.ts)
-        date1 = _add_days(4)
-        date2 = _add_days(9)
-        date3 = _add_days(14)
-
-        task1 = await client.createTask({
-            "title": "Follow-up 1 — Check + Connect",
-            "description": f"Stub: check email + connect on LinkedIn for {lead.contact_name} at {lead.company_name}.",
-            "dueDate": date1,
-            "dealId": deal["id"],
-        })
-        task2 = await client.createTask({
-            "title": "Follow-up 2 — Short Bump",
-            "description": f"Stub bump for {lead.signal_type}.",
-            "dueDate": date2,
-            "dealId": deal["id"],
-        })
-        task3 = await client.createTask({
-            "title": "Follow-up 3 — Close the Loop",
-            "description": f"Stub close on: {lead.pain_point}",
-            "dueDate": date3,
-            "dealId": deal["id"],
-        })
-
-        return {
-            "contact_id": contact["id"],
-            "deal_id": deal["id"],
-            "task1": {"id": task1["id"], "date": date1},
-            "task2": {"id": task2["id"], "date": date2},
-            "task3": {"id": task3["id"], "date": date3},
-            "provider": provider,
-            "authenticated_as": current_user.get("email") or current_user.get("id"),
-            "note": "STUB route (T005): protected by get_current_user; full orchestration + LLM enrich in T008+. CrmClient exercised. Auth is stub (DEBUG fallback or Bearer).",
-        }
-    except Exception as e:
-        logger.exception("CrmClient call failed in stub push")
+        logger.exception("CrmClient call failed in stub push (via lead_service)")
+        # Creation errors (e.g. bad token to factory) and op errors -> 502 for simplicity in stub
+        # (prior separate 400 for create is now subsumed; callers see descriptive detail)
         raise HTTPException(status_code=502, detail=f"CRM operation failed: {str(e)}")
+
+    return {
+        **core_result,
+        "provider": provider,
+        "authenticated_as": current_user.get("email") or current_user.get("id"),
+        "note": "STUB route (T008): protected by get_current_user; delegates to create_lead_with_followups (exact flow). Full orchestration + LLM enrich + real models in T009+. CrmClient exercised via service.",
+    }
 
 
 # Router placeholders (mirrors vanguard; expand in T005+)

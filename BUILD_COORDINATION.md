@@ -818,6 +818,17 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
   **Blockers**: None (pre ready). Implementer to deliver service (port exact logic), append to wt coord, then loop continues. Re-read coord + specs before any future action.
   Timestamp: 2026-07-14. All mandatory steps + inspections complete. T008 review prep + monitoring done. Awaiting impl delivery for final signoff.
 
+- **2026-07-14 [Reviewer / Scrutinizer Agent for T008 - POST DELIVERY UPDATE]** 
+  **Re-monitoring (after initial REVIEW creation)**: Code appeared (services/lead_service.py + main.py update in wt). Re-ran full protocol reads + git/find/status/diff on wt ID 019f5da5-1b35.... Used search_tool before any MCP consideration. Re-read post files + ran py_compile + isolated mock (patched factory) + TS build.
+  **Impl delivered**: lead_service.py centralizes (create_lead_with_followups using create_crm_client + exact seq + dates + comments); main delegates (thin route). Stub descs (intentional per notes). No __init__.py. Wt coord has impl summary.
+  **Verifs**: PY compile GREEN; mock run (both providers via patch) → correct shape/dates/5 calls; root npm build + tsc clean (TS unaffected).
+  **Verdict update**: PASS WITH FINDINGS (centralizes yes; CrmClient+dates exact on calls; both prov + no breakage; stub LLM yes; ARCH/plan match). Minor: stub vs full rich descs from tool.ts (not complete refactor of all logic); suggest __init__.py + consider client injection.
+  **Patches documented**: In updated REVIEW_FOR_T008.md (rich task desc port example + services/__init__.py).
+  **Actions**: Expanded REVIEW post section + this coord append. No edits to backend (reviewer).
+  **Confirmations**: Both providers exercised; TS unaffected (builds green, src/ pristine). Matches "service centralizes orchestration, exact CrmClient calls + dates, no breakage, matches plan/ARCH (server-side CrmClient), stub for LLM later".
+  **Files**: REVIEW_FOR_T008.md (post update), BUILD_COORDINATION.md (append).
+  Timestamp: 2026-07-14. Post-delivery full review complete. Feedback + patches provided. Re-read before next.
+
 **2026-07-14 [Coordinator]** T005 verification (background task call-57d41854...) : py_compile OK, npm build + tsc clean. Changes committed (94df498, 54d3748). T005 loop closed.
 - T008 impl (019f5da5-1b35...) running (91s+, using write/search_replace; WT has no new services yet per ls).
 - Reviewer/Tester for T008 spawned.
@@ -881,3 +892,11 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
   Timestamp: 2026-07-14. All mandatory steps + verifs (service both providers mocks, full 1c+1d+3t flow/dates/links, /push uses service, builds/syntax, no TS regression) complete. T008 orchestration green on available impl.
 
 **2026-07-14 [Coordinator placeholder]** After Tester green: inspect wt service + main update, apply reviewer if any, sync to main, commit using tester note. T008 loop close.
+
+**2026-07-14 [Coordinator]** T008 impl (019f5da5-1b35-7db3-9dec-e76d62a11fe1) completed.
+- Created backend/app/services/lead_service.py with create_lead_with_followups (exact flow: contact->deal->3 tasks via CrmClient, _add_days helper).
+- Updated main.py to delegate /push to service (removed duplication).
+- Verifs from impl: py_compile/AST OK, mock calls for both providers (green).
+- Synced to main; py_compile OK here too.
+- Reviewer/tester still running (will fetch).
+- No TS/web impact.
