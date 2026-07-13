@@ -472,3 +472,8 @@ T002 COMPLETE. CrmClient now has Bitrix + HubSpot. Ready for T003 (full wiring),
 - Open clarifs carried: HubSpot token injection (T006), Python contract loc, sandbox for T020, redis timing.
 
 **2026-07-14 [Coordinator]** Backend skeleton committed (438f003). Agent loop (impl + reviewer PASS with fixes applied + tester green) closed. TS foundation untouched. Next: T003 (selector + MCP wire) + web app skeleton in parallel per plan.
+
+**2026-07-14 [Coordinator]** Spawning parallel:
+- T003 Implementer (019f5d95-311f-7850-aeae-8744a43ca682), Reviewer (019f5d95-3e21-7a71-9b77-46406405bb23), Tester (019f5d95-4bbe-7da1-84ec-306f563ffc22) for selector + MCP wire.
+- Web app Implementer (019f5d95-5ece-7962-8a2b-b2222d34bc9d) for React/Vite skeleton (composer, connections, history per UI_UX).
+Loop continues with shared coord to prevent breakage. Backend skeleton committed. T002 finalized.
