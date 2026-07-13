@@ -907,3 +907,8 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - Tester (019f5da5-330c-7c82-b274-cd666b2ac360): GREEN (syntax, mocks, delegation, no TS regression). Appended log + prepared commit note.
 - Synced + committed (3a78967 + tester ebdc589).
 - No TS/web impact. Prepares T007/T009.
+
+**2026-07-14 [Coordinator]** T008 loop closed (impl + reviewer PASS w/ minor + tester GREEN; __init__.py polish committed 5d0e86d).
+- Service centralizes flow; /push delegates; mocks green for both; no TS impact.
+- T006 (vault) agents spawned (impl, rev, test) to address open (per-user CRM token encryption/resolution from current_user + CrmConnection).
+- All agents re-reading this file.
