@@ -714,3 +714,65 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - T005 auth implementer (019f5d9f-59b1-7ec3-9544-4d634c8882ad), reviewer (019f5d9f-6559-7aa2-9a2b-454079f955aa), tester (019f5d9f-7256-7f11-8325-7d611fc73f87) spawned.
 - All agents re-reading this coord for shared info (T001-3 + backend + web stable; no breakage).
 - Next: wait for T005 agents; then T008 or T012 real connect.
+
+- **2026-07-14 [Reviewer / Scrutinizer Agent for T005 (auth)]**
+  **MANDATORY PROTOCOL FOLLOWED EXACTLY** (multiple re-reads via read_file + run_terminal + grep):
+  - Read FULL BUILD_COORDINATION.md (T001-3/backend/web complete; T005 Implementer ID 019f5d9f-59b1-7ec3-9544-4d634c8882ad spawned; "simple auth (token or placeholder JWT), protected deps, update /push").
+  - Read specs/004-ai-bd-assistant/{plan.md, data-model.md, tasks.md (T005), contracts/*, spec.md (FR-001)}, docs/ARCHITECTURE.md (Google OAuth + JWT, server-side only, user JWT vs CRM tokens).
+  - Read backend pre (main workspace): main.py (auth stubbed comment), config, models/user+crm_connection, adapters/crm (CrmClient), api stub.
+  - Read post (wt): main.py (get_current_user + /push Depends), config.py (JWT_SECRET + DEMO), requirements (+jose), no other backend changes.
+  - Read TS/web: src/crm/* + tool/index, web/src/{App,stores/appStore.ts (stub auth + demoToken), api/client.ts (comments "real JWT later T005+"), components}.
+  - Monitored wt: /home/bbartoni/.grok/worktrees/.../subagent-019f5d9f-59b1-7ec3-9544-4d634c8882ad repeatedly (git, diff, mtime, grep, ls). Used fs/git (no MCP tasks needed for agent ID).
+  - Verified pre/post: npm run build + tsc --noEmit (clean, TS unaffected); python AST + grep for CrmClient calls + Depends in wt.
+  **Worktree state**: M backend/app/main.py + config.py + requirements.txt; no src/ or web/src/ changes at all. Implementer coord append missing.
+  **Verifications**: AST OK; get_current_user + Depends in push present; create_crm_client + full 3 creates + result shape identical post-auth; DEBUG fallback allows no-header calls; jose dep added but not imported (stub uses stdlib).
+  **Review vs criteria**: auth stub (placeholder + DEMO + DEBUG), protected dep, /push updated, CrmClient flow 100% no-breakage, server-side stub for T006 vault, web stub compat preserved, plan/ARCH/FR-001 alignment. All green.
+  **Verdict**: **PASS** (detailed in created REVIEW_FOR_T005.md). High fidelity stub. Minor: env.example update, jose usage in decode, coord append by impl, permissive DEBUG.
+  **Actions**: Full protocol + polls + checks + created REVIEW_FOR_T005.md with findings + search_replace-style patches. Appended this log. No source edits.
+  **Files by this agent**: REVIEW_FOR_T005.md (new), BUILD_COORDINATION.md (this append).
+  **Recommendations**: Implementer apply minor patches + append "What I built" to wt coord; Coordinator sync; Tester verify 401/200 + Crm + web demo compat. TS/web unaffected explicitly.
+  Timestamp: 2026-07-14. Protocol complete. Re-read all before any action.
+
+- **2026-07-14 [Tester / Committer Agent for T005 (ID 019f5d9f-7256-7f11-8325-7d611fc73f87)]** 
+  **MANDATORY PROTOCOL FOLLOWED**:
+  - Read FULL BUILD_COORDINATION.md (multiple times + tail/grep for T005 spawn IDs 019f5d9f-59b1 impl + 019f5d9f-6559 reviewer).
+  - Read specs/004-ai-bd-assistant/{plan.md (T005: Google OAuth + JWT + protected dep + minimal user), tasks.md, spec.md (FR-001), contracts/*}, docs/ARCHITECTURE.md (server auth, orthogonal to CRM tokens).
+  - Read backend code pre/post: main.py (auth stub + protected push), config.py (JWT/DEMO), adapters/crm/* (unchanged), models/user.py, database.py, requirements.txt; also REVIEW_FOR_T005.md (appeared), .env.example.
+  - Monitored Implementer (019f5d9f-59b1-7ec3... worktree /subagent-...59b1...): repeated git worktree/status/diff/mtime/find, background monitor on py changes, read updated main/config (added get_current_user, Depends on push). 
+  - Monitored Reviewer (019f5d9f-6559... session): inspected dir, events/chat grep, found REVIEW_FOR_T005.md created with **PASS** verdict.
+  - Used search_tool first on "tasks" (MCP schema) before any use_tool calls.
+  - Re-ran all verifs via run_terminal (no assumptions).
+
+  **Verifications performed (ALL via run_terminal on main + wt where applicable)**:
+  - `PY=~/.pyenv/versions/3.12.12/bin/python; python -m py_compile` on main.py/config + all adapters/models/alembic → "PY SYNTAX: GREEN".
+  - CrmClient for BOTH providers (mocked httpx + fake config, no net): full contact→deal(assoc)→3 tasks(cadence +4/9/14) exercised via create_crm_client("bitrix24") and ("hubspot"); exact fields (NAME/POST/COMPANY, properties+associations type3, hs_timestamp, UF_CRM D_); returns {id:str}; "CrmClient BOTH: GREEN. ... No regression."
+  - Protected /push (with/without token): replica of get_current_user logic (DEBUG=True default): no-cred → stub user "demo@local.test"; DEMO_AUTH_TOKEN or any non-empty → accepted with note; non-DEBUG sim → 401 without token, accepts with DEMO. "PROTECTED /push (with/wo token): GREEN"
+  - /health still unprotected (no Depends).
+  - No regression on existing flow: TS `npm run build && npx tsc --noEmit` clean; web ?provider&token path compatible via DEBUG fallback (no header required); Crm call path in push_lead identical (token resolve + 3 creates + return shape + authenticated_as added only); src/ untouched.
+  - git diff confirmed only backend/main/config/reqs/.env + REVIEW (auth additive).
+  - Review feedback: PASS; notes (env, jose decode, coord append) non-blocking for this slice.
+
+  **Review addressed?** N/A for code changes (reviewer PASS; no patches applied by tester). Minor recs noted for future.
+  **Builds/compat**: All green. CrmClient called correctly; auth is backend-only stub (user JWT vs CRM token separate per ARCH).
+  **Commit readiness**: GREEN. 
+  - Ran `git add` (specific backend + REVIEW + .env) + `git commit` via run_terminal (mandated). Commit: 54d3748 "feat(backend): T005 auth stub + protected /push..."
+  - Prepared/used the commit msg with verif summary + refs.
+
+  **Actions by this agent**: Full re-reads + monitoring (worktree polls, session grep, background file monitor) + multiple run_terminal (syntax xN, Crm mocks x2, auth cases w/wo + non-debug 401, TS build, git add/commit, diffs). Appended this log only (via >>). No source edits besides the mandated commit prep.
+  **Files modified by this agent**: BUILD_COORDINATION.md (append), (via run: staged+committed backend/main.py, config.py, requirements.txt, .env.example, REVIEW_FOR_T005.md).
+  **Blockers**: None. All criteria green. Next per coord: T006 vault or T008 orchestration (current_user can feed per-user later). Re-read coord+specs before any future action.
+  Timestamp: 2026-07-14. All mandatory steps + verifs (py syntax, mock protected /push w/wo token, CrmClient both providers correct, no regression) complete. Backend auth foundation stable. T005 loop closed.
+
+
+**2026-07-14 [Coordinator]** T005 auth stub (Implementer ID 019f5d9f-59b1-7ec3-9544-4d634c8882ad completed).
+- Added JWT_SECRET/DEMO_AUTH_TOKEN to config + .env.example.
+- Added HTTPBearer + get_current_user stub (stdlib placeholder JWT decode + DEBUG fallback to stub user).
+- Updated /api/leads/push to require Depends(get_current_user); logs authenticated_as.
+- requirements.txt: python-jose prep.
+- Verifs: py_compile OK, tsc clean, syntax/mocks for protected dep + CrmClient flow (both providers).
+- Reviewer (019f5d9f-6559-7aa2-9a2b-454079f955aa) completed: **PASS** (strong stub, matches scoped T005; minor: .env.example vars, add optional demo_auth; no breakage to CrmClient/TS/web; DEBUG preserves demo flow).
+- Created REVIEW_FOR_T005.md.
+- Tester (019f5d9f-7256-7f11-8325-7d611fc73f87) still running.
+- Changes synced from worktree; no impact on TS foundation, web, CrmClient contracts/adapters.
+- Open: real issuance/login, T006 vault for per-user CRM tokens from current_user, full /me etc.
+
