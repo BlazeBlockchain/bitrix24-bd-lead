@@ -783,3 +783,8 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - Changes committed (94df498 + tester 54d3748).
 - Foundation: T001-3 + backend skeleton + auth stub + web skeleton solid.
 - Next: spawn T006 (CRM token vault/encryption) or T008 (orchestration service) or T012 (web connections real).
+
+**2026-07-14 [Coordinator]** T005 tester (019f5d9f-7256...) completed: GREEN (syntax, protected /push mocks for both providers + 401/DEBUG, CrmClient calls exact + no regression, TS/web clean). Appended log.
+- T005 full loop closed (impl + reviewer PASS + tester GREEN). Committed (94df498 + tester).
+- T008 agents spawned (impl 019f5da5-1b35..., rev 019f5da5-27d4..., test 019f5da5-330c...).
+- All informed via this file.
