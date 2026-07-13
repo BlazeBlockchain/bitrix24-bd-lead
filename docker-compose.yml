@@ -1,0 +1,53 @@
+# Basic backend skeleton compose (T004). Mirrors vanguard-game/docker-compose.yml
+# (no top-level version: modern compose ignores it + warns)
+# Run: docker compose up -d db backend
+# For full (later): add redis, web, etc per ARCHITECTURE.md
+services:
+  bdlead-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bdlead}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
+      POSTGRES_DB: ${POSTGRES_DB:-bdlead_db}
+    volumes:
+      - bdlead_db_data:/var/lib/postgresql/data
+    networks:
+      - bbspace_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bdlead}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  bdlead-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bdlead}:${POSTGRES_PASSWORD:-dev-password}@bdlead-db:5432/${POSTGRES_DB:-bdlead_db}
+      DEBUG: "true"
+      DEFAULT_CRM_PROVIDER: ${DEFAULT_CRM_PROVIDER:-bitrix24}
+      BITRIX24_WEBHOOK_URL: ${BITRIX24_WEBHOOK_URL:-}
+      HUBSPOT_ACCESS_TOKEN: ${HUBSPOT_ACCESS_TOKEN:-}
+      # JWT etc later
+    depends_on:
+      bdlead-db:
+        condition: service_healthy
+    networks:
+      - bbspace_net
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  bdlead_db_data:
+
+networks:
+  bbspace_net:
+    external: true

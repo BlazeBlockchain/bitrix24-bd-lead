@@ -371,3 +371,102 @@ T002 COMPLETE. CrmClient now has Bitrix + HubSpot. Ready for T003 (full wiring),
 **2026-07-14 [Coordinator]** Synced final T002 from Implementer worktree to main (hubspot.ts, index.ts, py stub). Applied reviewer assoc comment polish. Re-ran build + sims (green, correct ts calc + assoc bodies). Updated this coord file with summaries + current focus shift to backend. Committed T002 polish + reports. T002 loop closed. Backend agent in progress (worktree). Next: monitor backend, spawn its reviewer/tester once ready, or T003 wiring. Open clarifications (HubSpot token in backend, exact assoc validation, sandbox for T020) noted in prior reports.
 
 **2026-07-14 [Coordinator]** Backend reviewer (019f5d90-ef18-7450-a28e-4b2759d9cf4c) and tester (019f5d90-ff12-7353-8931-c7798ab03a70) spawned for the running backend Implementer (019f5d8d-e810-7de1-8139-fc5193502a37). Loop continues: monitor worktree + coord for backend skeleton progress. T002 finalized in main (hubspot + index + py + reports committed). Foundation (T001/T002) stable in src/crm.
+
+- **2026-07-14 [Reviewer / Scrutinizer Agent for Backend Skeleton]** 
+  **MANDATORY PROTOCOL FOLLOWED EXACTLY**:
+  - Read FULL latest BUILD_COORDINATION.md (multiple times; T001+T002 complete+committed; backend skeleton "in progress"; Implementer ID 019f5d8d-e810-7de1-8139-fc5193502a37 in worktree; last notes on reviewer spawn + "monitor").
+  - Read specs/004-ai-bd-assistant/{plan.md, data-model.md, contracts/crm_client.py, contracts/crm-client.md, tasks.md, spec.md}.
+  - Read docs/ARCHITECTURE.md (full).
+  - Read stable src/crm/* + tool.ts + index.ts (TS foundation) + prior REVIEW_*.md + TEST_REPORT_T002.md.
+  - Monitored via repeated: git worktree list, ls/find on worktree, git status --porcelain + diff --stat (in worktree), grep/tail on coord files for ID + "backend" + "skeleton", file reads on appearance of code.
+  **Worktree**: /home/bbartoni/.grok/worktrees/workspace-bitrix24-bd-lead/subagent-019f5d8d-e810-7de1-8139-fc5193502a37
+  - Code appeared: backend/ (adapters/crm with full Bitrix+HubSpot Python CrmClient, models stubs, main/config/database, alembic), docker-compose.yml (new), .env.example (mod).
+  - git: only .env.example changed; src/ untouched (post-T002 state); untracked backend files.
+  - Validated: python -m py_compile on all backend/*.py → clean. Full file reads + structure vs plan/ARCH/contracts.
+  **No TS breakage**: src/crm (types, bitrix24, hubspot, index), tool.ts, index.ts 100% stable and untouched. executeBdLead polymorphic remains. MCP Bitrix path unchanged.
+
+  **Review performed**:
+  - Backend structure: matches plan.md (FastAPI, adapters/crm/, Alembic, models, Docker, compose).
+  - Python CrmClient impls: Bitrix24Client + HubspotClient in backend/app/adapters/crm/ — excellent exact match to TS contracts (src/crm/*.ts), specs/contracts/crm_client.py, ARCHITECTURE (v3 + assocs type 3/216, hs_timestamp ms@09:00Z, field props, error strings, name split, {id:str} returns, async httpx).
+  - Models: basic User + CrmConnection per data-model (UUID, FK, unique, encrypted placeholder); Alembic 001 enables pgvector + tables.
+  - Endpoints: /api/health + stub /api/leads/push exercising full CrmClient flow (provider switch, same result shape).
+  - Docker: postgres:16 + backend service, healthchecks, env injection (no secrets in code), entrypoint runs alembic.
+  - Config/security: tokens from settings/env or ?token= (stub documented as "demo" "T006 later"); no hardcoded client secrets. Matches "server env only".
+  - CrmClient protocol: used (types.py Protocol + impls + factory mirroring TS index).
+  - Checks vs ARCH/plan: FastAPI yes, Alembic+Postgres+pgvector yes, CrmClient abstraction yes.
+
+  **Verdict**: **PASS WITH MINOR FIXES** (strong high-quality skeleton; foundation for T005+). Detailed in created REVIEW_FOR_BACKEND_SKELETON.md.
+  - Positives: adapters match contracts/TS 1:1 (verified mappings), structure clean, no TS impact, good comments/stubs.
+  - Issues found (actionable, low risk for skeleton): 
+    1. database.py get_db dep pattern (yield+commit inside async with) — potential session timing issues. Patch provided.
+    2. Minor import robustness + unused import.
+    3. Contract py still shows sync defs (backend correctly async); doc note needed.
+    4. Implementer did not append required BUILD_COORDINATION summary yet.
+    5. Open auth/token injection clarifs carried from T002.
+  - All other: syntax clean, mappings parity, no breakage, no secrets violation.
+
+  **Actions taken**:
+  - Inspected worktree on code appearance + re-reads.
+  - Created REVIEW_FOR_BACKEND_SKELETON.md (full mandatory protocol summary, criteria checklist, verdict, 6 findings + search_replace-style patches, cross-refs, recs, clarif asks).
+  - Appended this log to BUILD_COORDINATION.md (main).
+  - No code changes performed (reviewer role).
+  - Confirmed TS src/crm stable + no drift.
+
+  **Concrete patches** (see full REVIEW_FOR_BACKEND_SKELETON.md for details + more context):
+  - database.py: fix get_db + early Base import.
+  - Add TODOs in main.py + contracts/crm_client.py.
+  - Implementer to append full "What I built / Decisions" to worktree coord.
+
+  **Recommendations**:
+  - Implementer: apply the 2 small patches in worktree, append proper detailed log entry (per Information Sharing Rule), re-validate.
+  - Coordinator: after, sync backend/ + docker-compose.yml to main.
+  - Tester: verify with compose + curl smoke once fixed; confirm TS builds unchanged.
+  - Clarifications requested (open from T002 + this): 
+    - Exact token injection for CrmClient in real backend (per-user decrypt from crm_connections before create_crm_client?).
+    - HubSpot token (private app Bearer ok?).
+    - Python contract.py location (specs/ or backend/?).
+    - When to add redis / full models (T009) / lifespan.
+
+  **Files by this agent**: REVIEW_FOR_BACKEND_SKELETON.md (created), BUILD_COORDINATION.md (this append only).
+  **Timestamp**: 2026-07-14. All instructions followed. T001/T002 foundation preserved. Backend skeleton ready for fixes + next loop steps. Re-read everything before any future action.
+
+
+- **2026-07-14 [Tester / Committer Agent for Backend Skeleton]** 
+  **MANDATORY PROTOCOL (multiple re-reads via read_file + run_terminal tail/grep)**: 
+  - Read FULL latest BUILD_COORDINATION.md (T001+T002 complete; backend in progress; last coordinator spawn note for IDs 019f5d8d-e810... impl + 019f5d90-ef18... reviewer).
+  - Read specs/004-ai-bd-assistant/{plan.md, data-model.md, contracts/crm_client.py, contracts/crm-client.md}, docs/ARCHITECTURE.md.
+  - Monitored via coordination (main + worktree copy) + worktree inspection repeatedly. 
+  **Worktree inspected**: `/home/bbartoni/.grok/worktrees/workspace-bitrix24-bd-lead/subagent-019f5d8d-e810-7de1-8139-fc5193502a37` (backend/ + updated docker-compose.yml + .env.example + coord append present; main workspace has none of backend/ yet).
+  **Impl updates**: Code appeared in worktree (uncommitted ?? files: backend structure, adapters). Implementer appended detailed "What I built" + files + decisions to worktree BUILD_COORDINATION.md (lines ~366+). No equivalent updates visible yet from Reviewer (ID 019f5d90-ef18...) in main or wt coord (only spawn mention); no new REVIEW_FOR_BACKEND*.md .
+  **Inspections performed** (run_terminal + read_file):
+    - `git worktree list`, `ls backend/`, `find`, `git status --porcelain | grep -v backend` (src/ unchanged), `git log --oneline`.
+    - Full reads: backend/app/adapters/crm/{types.py, bitrix24.py, hubspot.py, __init__.py}, main.py, config.py, database.py, models/{*.py}, alembic/versions/001_initial.py, Dockerfile, entrypoint.sh, requirements.txt, docker-compose.yml (worktree), .env.example.
+    - TS side (main + wt): src/crm/{types.ts,index.ts,*.ts}, src/tool.ts, src/index.ts, package.json, tsconfig; contracts comparison.
+  **Verifications run (all via run_terminal_command)**:
+    - TS side (main): `npm run build` (exit 0) + `npx tsc --noEmit` (clean). "TS BUILD/CHECK: GREEN on main (preserves T001/T002 foundation)".
+    - Worktree: `git status... | grep src/ || echo 'NO CHANGES to src/ or TS config'` → confirmed 0 impact to TS CrmClient.
+    - Python syntax (py3.10 + exact py3.12 via pyenv): `python -m py_compile` (and 3.12 equiv) on ALL key files incl. adapters/crm/__init__.py (PEP695 type alias), bitrix/hubspot, main, models, alembic, config, database → "PY3.12 SYNTAX: ALL ... COMPILE OK".
+    - Docker: `docker compose config --quiet` (in wt) → "DOCKER COMPOSE CONFIG: VALID (no yaml errors, services defined)".
+    - Python CrmClient protocol + mock calls (py3.12 + unittest.mock + fake httpx module injected): full exercise of Bitrix24Client + HubspotClient + factory + create* methods. 
+      - Bitrix: str ids, exact fields (NAME/LAST_NAME/POST/COMPANY_TITLE, CONTACT_ID, UF_CRM_TASK D_, DEADLINE ...T09:00+00:00, RESPONSIBLE_ID), normalize date.
+      - HubSpot: v3 paths, properties, associations (typeId:3 contact-deal, 216 task-deal), hs_timestamp as int ms epoch @09:00Z, split name, optionals.
+      - Returns always {"id": "str"}, Protocol methods camelCase.
+      - Result: "PY CRMCLIENT MOCKS + CONTRACT VERIF UNDER 3.12: ALL GREEN". "MOCK Bitrix... PASS", "MOCK Hubspot... PASS".
+    - Contracts match: grep cross TS src/crm/types.ts + specs/crm-client.md + specs/crm_client.py + backend/app/adapters/crm/types.py → identical interfaces (CrmContact etc, contactId, dueDate, create* → Promise/dict {id:string}).
+  **No breakage to TS CrmClient side**: Confirmed (src/ untouched since T002; build/typecheck green; executeBdLead still polymorphic over interface from T001; Python mirrors 1:1 but isolated in backend/).
+  **Review feedback addressed?**: N/A - no reviewer output/REVIEW notes or coord appends from 019f5d90-ef18... appeared yet (only impl code + its self-log in wt). Impl matches plan/ARCH/data-model/contracts exactly; minor skeleton notes (e.g. on_event deprecation, external net, stub nature) non-blocking per T004.
+  **Foundation preserved**: YES. T001/T002 (src/crm types+adapters+factory, contracts) untouched. Python adapters port the mappings/comments faithfully.
+  **Commit readiness**: GREEN on available (impl present). Suggested commit (for after coordinator sync + reviewer if any): 
+    "feat(backend): T004 skeleton FastAPI + Python CrmClient adapters (Bitrix24+HubSpot) + stub models + Alembic + Docker/compose + health + /leads/push exercising clients (contracts exact); TS CrmClient no breakage; py syntax+mocks+compose green"
+  **Actions by this agent**: Multiple re-reads + worktree polls + run_terminal verifs (syntax, compose, TS build, contract greps, detailed mocks). Appended this log only. No source changes. No TEST_REPORT_BACKEND created (no issues found).
+  **Blockers / notes**: Reviewer updates not yet in coordination (will continue monitor if needed; loop per process). Sandbox tokens + docker net `bbspace_net` required for live run of stub (flagged). Open from prior: Python contract location (kept dual: specs + backend copy per impl). Ready for sync if green.
+  **Files modified by this agent**: BUILD_COORDINATION.md (this append). Re-read coordination + specs frequently throughout.
+  Timestamp: 2026-07-14. All mandatory reads, inspections, run_terminal checks complete. Backend skeleton verifs PASS. T001/T002 foundation 100% preserved.
+
+
+**2026-07-14 [Coordinator]** Backend skeleton (T004+) loop closed.
+- Implementer (019f5d8d-e810-7de1-8139-fc5193502a37) delivered full FastAPI + Alembic + Postgres + pgvector stub + Python CrmClient ports (Bitrix+HubSpot exact TS parity) + stub /push + Docker/compose. Worktree synced to main. Verifs: py syntax, compose config, contract match, TS no breakage.
+- Reviewer (019f5d90-ef18-7450-a28e-4b2759d9cf4c) PASS (high fidelity, no TS impact, minor DB dep fix applied). Created REVIEW_FOR_BACKEND_SKELETON.md with patches + recs (auth stub, T008 centralize, clarifs on token injection).
+- Tester (019f5d90-ff12-7353-8931-c7798ab03a70) all green (mocks, syntax, compose, contracts consistent, TS pristine). No TEST_REPORT needed. Appended log + prepared commit note.
+- Key patch applied (database.py async generator). Re-verified.
+- Open clarifs carried: HubSpot token injection (T006), Python contract loc, sandbox for T020, redis timing.
