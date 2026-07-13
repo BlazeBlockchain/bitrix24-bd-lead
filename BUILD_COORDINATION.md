@@ -788,3 +788,7 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - T005 full loop closed (impl + reviewer PASS + tester GREEN). Committed (94df498 + tester).
 - T008 agents spawned (impl 019f5da5-1b35..., rev 019f5da5-27d4..., test 019f5da5-330c...).
 - All informed via this file.
+
+**2026-07-14 [Coordinator]** T005 verification from background task: py_compile OK, npm build + tsc clean. Changes already in commits 94df498 / 54d3748. T005 loop fully closed (impl + reviewer PASS + tester GREEN + verification).
+- T008 agents spawned (impl 019f5da5-1b35-7db3-9dec-e76d62a11fe1 etc.).
+- Next: monitor T008 impl progress, fetch output when done, spawn reviewer/tester if needed, or advance to T006/T012.
