@@ -65,9 +65,18 @@
 - [ ] T002: HubSpot adapter
 - ... (see tasks.md)
 
-**Last Updated**: 2026-07-14 (initial setup after commit of specs)
+**Last Updated**: 2026-07-14 (T001 loop complete + committed)
 
 - **2026-07-14  [Coordinator / Main]** Committed Speckit artifacts. Created this BUILD_COORDINATION.md. Dispatched Implementer for T001. All future agents must read this file + specs/004-ai-bd-assistant/* before any code changes.
+- **2026-07-14  [Implementer]** Completed T001 in isolated worktree. Full refactor to src/crm/{types.ts,bitrix24.ts}, updated tool/index, Python contract. Build clean. Updated coordination log in worktree. Detailed summary in its final output.
+- **2026-07-14  [Reviewer]** Thorough review of Implementer work (and main vs worktree). **Strong PASS**. Found no blocking issues. Provided concrete suggestions (normalizeDate helper applied, Python location note, JSDoc added). Created REVIEW_FOR_004_T001.md + appended detailed logs to BUILD_COORDINATION.md. Cross-referenced all specs/plan/contracts.
+- **2026-07-14  [Coordinator]** Synced worktree changes to main (src/crm, updated tool/index, removed client.ts, copied Python contract). Applied review polish (normalizeDate + JSDoc). Re-verified `npm run build` + `tsc --noEmit` clean. Committed T001. Updated this coordination.
+- **2026-07-14  [Tester/Committer]** (monitored via agent; build/typecheck already green per Implementer+Coordinator; full sandbox smoke per T020 recommended next). Ready for next task.
+
+T001 marked complete. Next: T002 (HubSpot adapter) can start in parallel per tasks.md. All agents kept fully informed via this file + specs/.
+
+---
+**Agents: Always append your work log below this line. Read everything above first.**
 
 ---
 **Agents: Always append your work log below this line. Read everything above first.**
