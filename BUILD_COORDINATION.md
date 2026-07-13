@@ -180,3 +180,34 @@ T001 marked complete. Next: T002 (HubSpot adapter) can start in parallel per tas
   - Status: Awaiting Implementer changes + Reviewer signoff per "Build Loop Process". Will inspect provided worktree path or git diffs when posted to coordination. If provided, will `cd <worktree>; npm run build; ...` and compare outputs.
   - If no activity, will recheck in future interactions. Commit message suggestion prepared mentally: e.g. "refactor: extract CrmClient interface + Bitrix24 adapter (T001) - preserve exact MCP behavior".
   - No TEST_REPORT.md needed (no issues found yet).
+
+- **2026-07-14 ~00:25 [Tester / Committer Agent - FINAL VERIFICATION + COMMIT READINESS]** 
+  **Worktree / diffs examined**:
+  - Worktree: `/home/bbartoni/.grok/worktrees/workspace-bitrix24-bd-lead/subagent-019f5d81-3dd1-7151-9463-cfc248337599` (Implementer location per Reviewer log; listed src/crm/{types.ts,bitrix24.ts}, updated tool/index, build/ artifacts, own BUILD_COORDINATION.md copy).
+  - Main workspace: now synced (src/crm/ present, client.ts deleted, tool/index updated). git worktree list confirmed only primary + the subagent one.
+  - Diffs: `git show 604e532 --stat` (refactor commit): 7 files, +480/-60; renamed client->crm/bitrix24, added types + py contract + REVIEW + coord updates. `git show 604e532 -- src/crm/bitrix24.ts` inspected for mappings. Also manual `diff` attempts + full file reads of original (via git show bb11525:src/client.ts) vs new.
+  - Post-refactor commit HEAD=604e532 "refactor: T001 CrmClient interface + Bitrix24 adapter (preserve exact behavior)" (already includes reviewer feedback per msg).
+
+  **Verification runs (using run_terminal_command on main + worktree)**:
+  - In worktree: `npm run build` + `npx tsc --noEmit` → clean (exit 0).
+  - In main (post 604e532): `npm run build` success; `npx tsc --noEmit` clean.
+  - No `npm test` (none exist, T020 future).
+  - Manual Bitrix flow simulation (mocked, no net/sandbox needed): 
+    - Subclassed Bitrix24Client overriding `call()` to return fakes: createContact/Deal/Task produced {id: string}, correct UF_CRM_TASK: [`D_xxx`], DEADLINE: `YYYY-MM-DDT09:00:00+00:00`, Number() coercion for CONTACT_ID, name split, etc. All matched original spec.
+    - Full `executeBdLead(input, mockCrmClient)` (polymorphic): produced {contact_id, deal_id, task1/2/3} with 3 tasks + dates; call path index->tool->CrmClient.create* confirmed.
+  - Original Bitrix24Client behavior for createContact/createDeal/createTask: identical on wire (fields, errors like "Network error calling Bitrix24...", "Bitrix24 API error...", no-result, HTTP errors; date fmt; UF_CRM; RESPONSIBLE; linking). Only diff: returns now `{id: string}` (per Crm contract) vs number; internal to adapter (tool updated, MCP text output identical). No breakage to existing flow.
+  - Call paths unchanged outside crm/: index still sets up client from env + calls execute; tool does the 1-contact + 1-deal + 3-tasks sequence exactly.
+
+  **Review feedback addressed?** Yes (in 604e532): normalizeDate helper present in bitrix24.ts (defensive YYYY-MM-DD from dueDate/ISO), JSDoc on string IDs, etc. Python still under specs/.../contracts/crm_client.py (per implementer assumption; clarification noted but not blocking T001).
+  **Breaking changes?** None for MCP observable behavior or CRM side effects. CrmClient now in place for future (HubSpot etc). String IDs align to contract/data-model.
+  **Sandbox note**: Still no valid webhook/.env for live; sims + static + build sufficient and passed. (Clarification on live sandbox steps would help T020.)
+
+  **Commit readiness**: READY. The refactor commit 604e532 is clean, documented, verified. My coord updates (this log) are the only pending change in WD.
+  - Suggested (already used in 604e532, good): "refactor: T001 CrmClient interface + Bitrix24 adapter (preserve exact behavior)"
+  - If amending for tester signoff: "refactor: T001 ... (build+sims green; review feedback addressed; MCP flow identical)"
+  - Do not push (per instructions). Changes ready for coordinator sync/PR.
+  - T001 can be marked complete. No TEST_REPORT.md (all green; no reproduction cases for failure).
+  - Next per loop: update tasks.md / coord for done, proceed T002 etc. after any clarifs on Python loc.
+
+  **Files modified by this agent**: Only BUILD_COORDINATION.md (logs + status). No src edits (as third in loop).
+  **Blockers**: None. Ready. (Re-read all mandatory docs at start of session + periodic.)
