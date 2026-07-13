@@ -81,8 +81,15 @@
 - Must match exact interface from contracts/crm-client.md and types.ts.
 - HubSpot specifics (from research + ARCHITECTURE): v3 objects, associations array for linking, hs_timestamp as ms-epoch UTC, custom prop handling if needed.
 - Also: Update provider factory/selector if not done (T003).
-- Agents for this loop: New Implementer (worktree), Reviewer, Tester/Committer.
+- Agents for this loop: New Implementer (worktree ID 019f5d88-ceaa-7682-9621-b110846f88f7), Reviewer (019f5d88-e126-7ad1-973e-c1f693bae38b), Tester/Committer (019f5d88-f0e0-7e73-b6f5-c93299df0160).
 - Keep informed: Re-read this file + T001 artifacts before touching code. No breaking changes to existing Bitrix or CrmClient contract.
+
+**T002 agents spawned and running (as of 2026-07-14).** Implementer started reading files. Follow same loop: implement in worktree, reviewer scrutinizes, tester verifies+preps commit. Update this file.
+
+**Open clarifications from loop (Coordinator to resolve with user if needed):**
+- Python contract location (still in specs/.../contracts/ for now; move when backend/ created in T004?).
+- Sandbox creds / real webhook for live T020 smoke tests (mocks used for T001; needed for full verification).
+- HubSpot adapter auth in T002 (private app token? How passed to adapter?).
 
 ---
 **Agents: Always append your work log below this line. Read everything above first.**
