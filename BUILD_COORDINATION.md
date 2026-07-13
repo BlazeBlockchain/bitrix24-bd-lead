@@ -959,3 +959,14 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - Per open + plan: implement envelope encryption for CRM tokens, store/resolve in CrmConnection using current_user.
 - All re-reading this file.
 - T008 closed, T005 closed, web closed.
+
+**2026-07-14 [Coordinator]** T008 full loop closed (impl + reviewer + tester green; service centralizes flow; committed).
+- T006 vault agents spawned and progressing.
+- **Spawning next: T007 LLM proxy service** (Gemini 2.5 Flash primary + Haiku fallback; inject memory context; structured output; budget guards).
+- All agents (impl, rev, test) MUST update tasks.md, BUILD_COORDINATION.md, REVIEW_*.md, and other relevant .md files with progress, decisions, verifs, open items. Re-read this file first. Share info to avoid breaking changes.
+- Keep loop: impl in worktree, rev scrutinizes, test commits.
+
+**2026-07-14 [Coordinator]** T007 LLM proxy agents spawned (impl 019f5dad-8928-7872-8d9d-469693e2f185, rev 019f5dad-a0aa-7a01-ad38-759df63acdb9, test 019f5dad-b5a2-7dd3-8032-8f9110a22b99).
+- Per plan: Gemini 2.5 Flash primary + Haiku fallback in backend service; prompt with memory context (from T006 vault + profiles); structured JSON (snapshot + opener + 3 tasks + rationale); per-user budgets + logging.
+- **CRITICAL INSTRUCTION TO ALL AGENTS:** Re-read this BUILD_COORDINATION.md + specs/plan/tasks.md/spec.md/data-model.md/ARCHITECTURE.md etc. FIRST. Then UPDATE tasks.md, BUILD_COORDINATION.md (append your section with what you did, files, decisions, verifs, opens for others), create REVIEW_FOR_T007.md (for rev), and other .md files (e.g. plan updates if needed). Share info explicitly so no one makes breaking changes. Use worktree for impl. Keep CrmClient/T008 flow intact.
+- Loop active. Monitor outputs.
