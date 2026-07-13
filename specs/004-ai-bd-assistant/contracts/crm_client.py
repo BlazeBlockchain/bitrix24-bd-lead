@@ -108,6 +108,84 @@ class CrmClient(Protocol):
 # - Use associations for linking contact<->deal, deal<->task
 # - hs_timestamp = due date in ms epoch UTC for tasks
 # - See contracts/crm-client.md for details.
+#
+# ─── HubSpot Adapter Sketch (Python port for backend/app/adapters) ─────────────
+# (All following lines commented to keep file import-safe; copy-paste to real adapter.)
+#
+# from dataclasses import dataclass
+# import httpx  # or requests; use async in FastAPI
+#
+# class HubspotClient:
+#     """Implements CrmClient Protocol (sketch)."""
+#
+#     BASE = "https://api.hubapi.com"
+#
+#     def __init__(self, access_token: str):
+#         self.access_token = access_token
+#
+#     def _headers(self):
+#         return {
+#             "Authorization": f"Bearer {self.access_token}",
+#             "Content-Type": "application/json",
+#         }
+#
+#     def createContact(self, contact: CrmContact | CrmContactDict) -> dict[str, str]:
+#         # POST /crm/v3/objects/contacts
+#         # properties: firstname, lastname (split name), company, jobtitle=role,
+#         #             email?, hs_linkedin_url?
+#         props = {
+#             "firstname": "...", "lastname": "...", "company": contact.company,
+#             "jobtitle": contact.role, "email": contact.email,
+#             "hs_linkedin_url": contact.linkedin,
+#         }
+#         r = httpx.post(f"{self.BASE}/crm/v3/objects/contacts",
+#                        json={"properties": {k:v for k,v in props.items() if v}},
+#                        headers=self._headers())
+#         r.raise_for_status()
+#         return {"id": r.json()["id"]}
+#
+#     def createDeal(self, deal: CrmDeal | CrmDealDict) -> dict[str, str]:
+#         # POST /crm/v3/objects/deals + associations
+#         # Use associationTypeId: 3 for Deal -> Contact (HUBSPOT_DEFINED)
+#         body = {
+#             "properties": {
+#                 "dealname": deal.title,
+#                 "description": deal.comments,
+#                 "pipeline": "default",
+#                 "dealstage": "appointmentscheduled",  # first in default pipeline
+#             },
+#             "associations": [{
+#                 "to": {"id": deal.contactId},
+#                 "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 3}]
+#             }]
+#         }
+#         r = httpx.post(f"{self.BASE}/crm/v3/objects/deals", json=body, headers=...)
+#         ...
+#         return {"id": ...}
+#
+#     def createTask(self, task: CrmTask | CrmTaskDict) -> dict[str, str]:
+#         # POST /crm/v3/objects/tasks
+#         # hs_timestamp = int( ms since epoch UTC ); use 09:00Z for parity
+#         # associationTypeId: 216 = Task -> Deal
+#         due_ms = int(datetime.fromisoformat("...").timestamp() * 1000)  # or equiv
+#         body = {
+#             "properties": {
+#                 "hs_task_subject": task.title,
+#                 "hs_task_body": task.description,
+#                 "hs_timestamp": due_ms,
+#                 "hs_task_status": "NOT_STARTED",
+#             },
+#             "associations": [{
+#                 "to": {"id": task.dealId},
+#                 "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 216}]
+#             }]
+#         }
+#         ...
+#         return {"id": ...}
+#
+# NOTE: Full backend adapter will live under backend/app/adapters/crm/hubspot.py (plan.md).
+#       This sketch ensures parity with TS HubspotClient (src/crm/hubspot.ts).
+#       See T002 + T008 for orchestration reuse.
 
 
 # Convenience type for results (optional)
