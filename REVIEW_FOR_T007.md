@@ -145,3 +145,41 @@ Timestamp: 2026-07-14. Tester/Committer complete. Re-read full coord+specs befor
 
 **Commit note prepared** (see BUILD_COORDINATION append). Timestamp: 2026-07-14. T007 tester complete.
 
+
+## ADDITIONAL DEDICATED REVIEW (as assigned Reviewer subagent for T007 - post all prior)
+
+**Re-reads (explicit, first action + throughout)**: FULL BUILD_COORDINATION.md (re-read chunks 1-30, T007 grep sections ~1050-1360+, tail); full plan.md, spec.md, tasks.md, data-model.md; ARCHITECTURE.md (LLM/enrich/memory/budget), other docs; full backend (main, lead_service, config, adapters/crm/* incl factory+types, token_vault); llm_service.py (full from WT), src/tool.ts, web components/api; prior REVIEW sections.
+**WT access + monitoring**: Confirmed /home/bbartoni/.grok/worktrees/.../subagent-019f5dad-8928-7872-8d9d-469693e2f185 has llm_service.py etc. Used search_tool on "tasks" first (MCP schema retrieved, irrelevant for build).
+**Verification commands executed**:
+- PY compile on WT T007 files + adapters: GREEN.
+- `npm run build && npx tsc --noEmit`: GREEN (no TS/src impact).
+- Functional: generate_enrichment mocks (keys, 3 follow_ups+rationale, memory, budget exceed path).
+- Integ: patched lead_service create_lead... for bitrix+hubspot: verified exact 1+1+3 Crm calls + enriched fields in CRM payloads + result.enriched_preview. Dates/links/ids match src/tool.ts BdLeadResult.
+- docker: VALID.
+
+**LLM impl review**:
+- Primary/fallback: correct impl + graceful mock. Good.
+- Memory: injected at prompt head, stub ready (current_user + explicit memory_context param).
+- Structured: company_snapshot etc + follow_ups w/ rationale; parser handles real LLM output variance.
+- Budgets: per uid daily, logs match data-model.
+- No over-scope: stub in-mem ledger (T009), no direct secrets.
+
+**Integration + no breakage review**:
+- Called pre-CrmClient in lead_service: additive (enriches text only); create_crm_client, inputs, outputs for ids/dates/links identical to pre-T007.
+- Both providers exercised in mocks.
+- No change to adapters, types, CrmClient Protocol.
+- TS/web/MCP: untouched (builds pass; web comments reference future T013 using /enrich).
+- Auth orthogonal: current_user used for memory only.
+- Minor divergence with main T006 (current_user not forwarded in WT lead_service call to factory) -- non blocking for LLM, CrmClient flow preserved. Patch provided in coord append.
+
+**Verdict (this review)**: **STRONG PASS**. LLM impl complete and correct per spec/plan/ARCH. Integration clean + additive. Zero breakage to CrmClient (T001/T002/T003), orchestration (T008), auth (T005), TS src, web, MCP. All key factuals from ARCH etc preserved. Feedback/patches in this file + coord append.
+
+**Patches/feedback summary** (concrete, for impl/coordinator):
+1. Reconcile T006 in lead_service (see BUILD_COORDINATION append for exact).
+2. (Optional) tighten budget: raise on !DEBUG exceed.
+3. (Future) capture real token counts from responses.
+No other issues.
+
+**Actions**: Updated tasks.md (mark + detailed note), appended review log + this section to REVIEW + to BUILD_COORDINATION.md. Shared opens (T009, T013).
+**Timestamp**: 2026-07-14. Re-read coord first. All requirements completed. T007 reviewed: impl good, integ good, no breakage.
+

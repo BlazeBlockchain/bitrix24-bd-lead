@@ -77,7 +77,7 @@ MCP server (current `src/`) remains as a thin stdio wrapper that reuses the same
 | Cache/Queue    | Redis                                    | Rate limiting, background enrichment jobs, session if needed. |
 | Auth (user)    | Google OAuth2 + JWT (short-lived)        | Lowest friction for non-technical SMB buyers. See "Google Auth" section. |
 | CRM Auth       | Webhook (Bitrix) + OAuth2 (HubSpot)      | Tokens stored encrypted server-side. |
-| LLM            | Gemini 2.5 Flash (primary) + Claude Haiku 4.5 (fallback) via server proxy | Cost target <$0.01/lead. Structured JSON outputs. |
+| LLM            | Gemini 2.5 Flash (primary) + Claude Haiku 4.5 (fallback) via server proxy | Cost target <$0.01/lead. Structured JSON outputs. T007 impl+tested (mocks, budgets, integration) complete. |
 | Container      | Docker + docker-compose                  | Single VPS. External network (like bbspace_net). |
 | CI/CD          | GitHub Actions or Gitea + SSH deploy     | Build, typecheck, compose up on VPS. |
 | Observability  | Stdout + basic healthchecks + cost logs  | Per-user token budgets + LLM usage tracking from day 1. |
@@ -104,6 +104,7 @@ Full details will live in Speckit `data-model.md`. Initial entities (UUID PKs, c
 - **leads**
   - id, user_id (FK), company_name, contact_name, contact_role, signal, signal_type, pain_point, notes
   - enriched (json: snapshot, opener, tasks array with rationale)
+  - (T007 impl: now populated via llm_service.generate_enrichment pre-Crm; see REVIEW_FOR_T007.md + lead_service)
   - crm_provider, crm_contact_id, crm_deal_id
   - created_at
 
@@ -126,6 +127,8 @@ Full details will live in Speckit `data-model.md`. Initial entities (UUID PKs, c
 Indexes: heavy on (user_id, created_at). Foreign keys with cascade where safe.
 
 Migrations via Alembic (Python side) or equivalent.
+
+**T009 note (2026-07-14)**: REVIEW_FOR_T009.md created; models must match data-model.md (users + user_memory_profiles + leads + crm_connections + outreach_history + usage_ledger; vectors on profiles/history). Current backend/app/models only stubs + 001_initial (pgvector ext). See BUILD_COORDINATION + tasks.md. Preps T010 API + persist. (Reviewer pre-delivery).
 
 ---
 
