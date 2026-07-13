@@ -11,15 +11,20 @@ Provides:
 - GET /api/health
 - POST /api/leads/push  (stub that accepts lead input + exercises CrmClient)
 
-Auth is stubbed (no JWT dep yet; T005). CRM tokens from settings (env) or query for demo.
+T005: basic auth/JWT stub added. Protected dependency get_current_user.
+ /push now requires/uses auth (Authorization: Bearer or debug fallback to settings).
+CRM tokens (for create_crm_client) still via ?token query or settings for demo (separate concern).
 """
 
+import base64
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import FastAPI, Query, HTTPException, Depends
+from fastapi import FastAPI, Query, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 from app.config import settings
@@ -27,6 +32,88 @@ from app.database import init_db, close_db, get_db
 from app.adapters.crm import create_crm_client, CrmClient  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+# ─── T005: Basic auth/JWT stub (no full DB/users yet; prepare per data-model) ───
+# Simple token validation + placeholder JWT decode using stdlib (or python-jose later).
+# Mirrors vanguard lightly: protected dep returning user-like dict.
+# In DEBUG: fallback stub user if no/invalid header (keeps current web stub flow working).
+# Real: Google OAuth issue short JWT (HS256), validate + user lookup (T005/T009).
+# Use current_user in future for per-user CRM token resolution (via CrmConnection).
+
+security = HTTPBearer(auto_error=False)
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict[str, Any]:
+    """Protected dependency stub (T005).
+
+    Returns minimal user dict (id/email/display_name) per data-model User.
+    No DB hit yet (stub); later query users table + validate against CrmConnections.
+    Accepts Authorization: Bearer <token-or-jwt>.
+    Falls back to settings-based demo user when DEBUG (keeps existing ?provider&token web calls working until web adds JWT header).
+    Placeholder JWT: stdlib base64 decode attempt (python-jose + real verify + /auth/login later).
+    """
+    token = credentials.credentials if credentials else None
+
+    if not token:
+        if settings.DEBUG:
+            logger.debug("get_current_user: no Authorization header, using DEBUG stub user (demo fallback)")
+            return {
+                "id": "stub-user-00000000-0000-0000-0000-000000000001",
+                "email": "demo@local.test",
+                "display_name": "Demo User (T005 stub)",
+            }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated (Authorization: Bearer <token> required)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Placeholder user from token
+    user: dict[str, Any] = {
+        "id": "stub-from-token",
+        "email": "user@stub.test",
+        "display_name": "Authenticated Stub",
+        "token_preview": (token[:12] + "...") if len(token) > 12 else token,
+    }
+
+    # Attempt placeholder JWT decode FIRST (stdlib, no sig verify - skeleton only)
+    # This path is exercised for real-looking JWTs even in DEBUG.
+    # For real JWT: from jose import jwt; jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+    try:
+        parts = token.split(".")
+        if len(parts) == 3:
+            payload_b64 = parts[1] + "=="
+            payload_bytes = base64.urlsafe_b64decode(payload_b64)
+            payload = json.loads(payload_bytes.decode("utf-8", errors="ignore"))
+            if isinstance(payload, dict):
+                user.update({
+                    "id": payload.get("sub") or payload.get("user_id") or user["id"],
+                    "email": payload.get("email") or user["email"],
+                    "display_name": payload.get("name") or payload.get("display_name") or user["display_name"],
+                })
+                user["jwt_payload"] = payload
+                user["note"] = "T005 placeholder JWT decoded via stdlib"
+                return user
+    except Exception as e:
+        logger.debug(f"placeholder JWT decode failed (ok for demo tokens): {e}")
+
+    if token == settings.DEMO_AUTH_TOKEN or (settings.DEBUG and len(token) > 0):
+        # Accept DEMO or any non-empty token in debug (skeleton convenience, after JWT attempt)
+        user["note"] = "T005 debug/demo auth accepted (Authorization or fallback)"
+        return user
+
+    if settings.DEBUG:
+        user["note"] = "T005 fallback in DEBUG after placeholder attempt"
+        return user
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid auth token (stub validation)",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -89,23 +176,31 @@ def _add_days(n: int) -> str:
     return d.strftime("%Y-%m-%d")
 
 
-# ─── Stub /push route that uses a CrmClient ────────────────────────────────────
+# ─── Stub /push route that uses a CrmClient (now auth-protected T005) ──────────
 
 @app.post("/api/leads/push")
 async def push_lead(
     lead: LeadPushInput,
     provider: str = Query(default=settings.DEFAULT_CRM_PROVIDER, description="bitrix24 | hubspot"),
-    token: str | None = Query(default=None, description="CRM webhook or access token (auth stub; prefer env)"),
+    token: str | None = Query(default=None, description="CRM webhook or access token (separate from user JWT; use ?token= or env for demo)"),
+    current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
     Stub endpoint: takes lead input and exercises CrmClient (contact+deal+3tasks).
 
-    Auth/selection stub: token from query or settings (T006 will use encrypted per-user).
-    In production this will be protected + use full orchestration from T008 + memory/LLM.
+    T005 auth: now protected via get_current_user (Authorization: Bearer or DEBUG fallback).
+    current_user available here (stub dict per data-model; will drive per-user CRM token lookup later).
+
+    CRM token resolution unchanged: ?token query or settings (T006 vault will replace).
+    Keep using create_crm_client(provider, token) as required.
+
+    In prod: protected + full orchestration (T008) + memory/LLM.
 
     Returns the ids (like executeBdLead result shape).
     """
-    # Resolve token (auth stub decision: top level config for skeleton/demo)
+    logger.debug(f"push_lead invoked by current_user={current_user.get('email')} provider={provider}")
+
+    # Resolve CRM token (unchanged logic; auth stub is orthogonal to CRM token)
     if not token:
         if provider == "hubspot":
             token = settings.HUBSPOT_ACCESS_TOKEN
@@ -174,7 +269,8 @@ async def push_lead(
             "task2": {"id": task2["id"], "date": date2},
             "task3": {"id": task3["id"], "date": date3},
             "provider": provider,
-            "note": "STUB route: full orchestration + auth + LLM enrich in later tasks (T005-T010). CrmClient exercised.",
+            "authenticated_as": current_user.get("email") or current_user.get("id"),
+            "note": "STUB route (T005): protected by get_current_user; full orchestration + LLM enrich in T008+. CrmClient exercised. Auth is stub (DEBUG fallback or Bearer).",
         }
     except Exception as e:
         logger.exception("CrmClient call failed in stub push")

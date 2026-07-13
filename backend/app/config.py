@@ -26,7 +26,12 @@ class Settings(BaseSettings):
     BITRIX24_WEBHOOK_URL: str = ""
     HUBSPOT_ACCESS_TOKEN: str = ""
 
-    # Future: JWT_SECRET, ENCRYPTION_KEK, GEMINI_API_KEY etc.
+    # Auth stub (T005): placeholder JWT secret. Real Google OAuth + proper JWT in T005/T006.
+    # Use for HS256 placeholder validation (python-jose). DEMO allows bypass in debug.
+    JWT_SECRET: str = "dev-jwt-secret-change-me-in-prod"
+    DEMO_AUTH_TOKEN: str = "demo-stub-jwt"  # for direct testing of protected routes in skeleton
+
+    # Future: ENCRYPTION_KEK, GEMINI_API_KEY etc. (T006+)
 
     class Config:
         env_file = ".env"
