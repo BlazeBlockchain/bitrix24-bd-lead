@@ -477,3 +477,117 @@ T002 COMPLETE. CrmClient now has Bitrix + HubSpot. Ready for T003 (full wiring),
 - T003 Implementer (019f5d95-311f-7850-aeae-8744a43ca682), Reviewer (019f5d95-3e21-7a71-9b77-46406405bb23), Tester (019f5d95-4bbe-7da1-84ec-306f563ffc22) for selector + MCP wire.
 - Web app Implementer (019f5d95-5ece-7962-8a2b-b2222d34bc9d) for React/Vite skeleton (composer, connections, history per UI_UX).
 Loop continues with shared coord to prevent breakage. Backend skeleton committed. T002 finalized.
+
+- **2026-07-14 [Tester / Committer Agent for T003/T019]** 
+  **MANDATORY PROTOCOL FOLLOWED (re-reads via read_file + run_terminal + grep)**:
+  - Read FULL BUILD_COORDINATION.md (multiple times; foundation complete per note, T003 Implementer+Reviewer spawned with exact ID 019f5d95-311f-7850-aeae-8744a43ca682; backend/T002 closed).
+  - Read specs/004-ai-bd-assistant/{plan.md, tasks.md (T003 + T019), contracts/crm-client.md, contracts/crm_client.py, spec.md}, docs/ARCHITECTURE.md.
+  - Read ALL src/crm/* (types.ts, bitrix24.ts, hubspot.ts, index.ts with factory), src/tool.ts (polymorphic executeBdLead + BdLeadResult), src/index.ts (MCP wiring), package.json, tsconfig.json, .env.example.
+  - Monitored Implementer worktree: /home/bbartoni/.grok/worktrees/workspace-bitrix24-bd-lead/subagent-019f5d95-311f-7850-aeae-8744a43ca682 repeatedly (git worktree list, cmp, git diff in wt, ls, mtimes, tail coord in wt).
+  - Monitored Reviewer (ID 019f5d95-3e21-7a71-9b77-46406405bb23): inspected /tmp/sessions/... (empty of new REVIEW/outputs at checks); no REVIEW_FOR_T003.md in main or wt yet.
+  - Confirmed at start: no src changes in main (HEAD d537eba "docs: spawn..."); factory existed from T002 (src/crm/index.ts) but MCP (src/index.ts) was still direct Bitrix24Client + BITRIX24 only.
+  - Re-ran inspections after detecting edits (uncommitted M in wt src/): diffs captured, code reviewed for compat.
+
+  **Worktree state when changes appeared (T003 impl)**:
+  - Modified (uncommitted): src/crm/index.ts (enhanced factory + createCrmClientFromEnv + env resolve + SUPPORTED + docs), src/index.ts (wired createCrmClient + CRM_PROVIDER branching with exact Bitrix compat block for errors/URL/exit + HUBSPOT path), src/tool.ts (minor doc update only).
+  - No other files (build/ will be regenerated; no touch to contracts, types, adapters, README).
+  - git status in wt: M on those 3 src; no breakage to exports or Bitrix24Client direct use.
+  - Coord in wt: no append from Implementer yet (only prior history).
+
+  **Verification runs (all via run_terminal_command; executed in main pre and inside WT post-edit)**:
+  - `npm run build` (main + WT) → exit 0 both.
+  - `npx tsc --noEmit` (main + WT) → clean both.
+  - **Mock executeBdLead for BOTH providers (factory + direct + fromEnv)**: 
+    Node sims in WT build/: using stubbed real adapter instances + pure mocks + factory-created. All produced {contact_id, deal_id, taskN: {id, date}} with string ids, correct +4/+9/+14 dates (from tool addDays), polymorphic call path.
+    - factory bitrix24 + hubspot
+    - direct new Bitrix24Client / new HubspotClient
+    - createCrmClientFromEnv() after env inject (CRM_PROVIDER=bitrix24/hubspot, defaults to bitrix)
+    - Result: all PASS; 5 calls (1c+1d+3t) logged in stubs; shapes identical.
+  - **No Bitrix regression confirmed**:
+    - Compat path in src/index.ts (when !isHubspot or default): EXACT same stderr msgs ("ERROR: BITRIX24_WEBHOOK_URL is not set.\nCopy .env.example..."), same URL validation + exit(1), same `Bitrix24 error: ` in catch.
+    - Success text still "✅ Bitrix24 entry created successfully" (tool name unchanged per spec FR-007).
+    - Direct Bitrix24Client ctor/usage still works (exported).
+    - execute flow identical (contact→deal w/ contactId str → tasks w/ dealId + dueDate).
+    - Error on invalid CRM_PROVIDER in fromEnv.
+  - **Polymorphic + factory**: executeBdLead(input, anyCrmClient) works for both impls. createCrmClient('bitrix24'|'hubspot', cfg) and createCrmClientFromEnv() return correct CrmClient impls (verified .constructor.name + methods). Matches contracts + ARCH.
+  - **Env alignment**: uses CRM_PROVIDER (bitrix24|hubspot|hs|bitrix), BITRIX24_WEBHOOK_URL, HUBSPOT_ACCESS_TOKEN (matches .env.example + DEFAULT_CRM_PROVIDER note).
+  - **MCP call paths**: index now does import {createCrmClient}, config branch, client=..., passes to execute in handler. tool unchanged in logic.
+
+  **Review feedback addressed?**: N/A (no REVIEW_*T003 appeared in Reviewer session or main; will re-monitor). Changes align with T003 desc ("Add provider selector / factory... Bitrix24 default for back-compat"), T019 ("Update MCP server (src/index.ts + tool) to use shared CrmClient"), plan, tasks.
+  **Builds/sims**: GREEN post-changes. Foundation (T001/T002) + no TS breakage.
+
+  **Commit readiness**: GREEN. Suggested commit msg (for coordinator after sync from wt):
+  ```
+  feat(crm): T003/T019 provider selector + MCP wiring (createCrmClientFromEnv + CRM_PROVIDER)
+
+  - src/crm/index.ts: enhanced factory with env resolution, createCrmClientFromEnv(), SUPPORTED_CRM_PROVIDERS
+  - src/index.ts: use factory; CRM_PROVIDER branch (bitrix default exact compat incl. errors/URL/exits; hubspot via HUBSPOT_ACCESS_TOKEN)
+  - src/tool.ts: doc update only (CrmClient multi-provider)
+  - Builds + tsc clean. executeBdLead polymorphic for both providers via factory/direct.
+  - 100% Bitrix24 MCP back-compat (strings, validation, outputs, direct imports).
+  - Refs: specs/004-ai-bd-assistant/{plan.md,tasks.md,contracts/crm-client.md}, .env.example
+  ```
+  (Changes currently in Implementer worktree uncommitted; sync + commit recommended.)
+
+  **Actions by this agent**: Full reads + monitoring polls + multiple run_terminal (build/tsc/sims in main+wt, git/cmp/diff, env sims, error string checks). Appended this log + prepared report. No src edits (tester role).
+  **Files modified by this agent**: BUILD_COORDINATION.md (append only).
+  **Blockers**: Reviewer (019f5d95-3e21...) output not yet visible (recheck if needed); T020 still needs sandbox for live both-CRM. Open auth injection clarifs carried. Re-read all before future action.
+  Timestamp: 2026-07-14. All mandatory + verif steps complete. T003/T019 wiring verified green on impl.
+
+- **2026-07-14 [Coordinator note placeholder for sync]** After Tester green: sync wt changes to main, apply any reviewer, commit T003/T019.
+
+- **2026-07-14 [Reviewer / Scrutinizer Agent for T003/T019]** 
+  **MANDATORY PROTOCOL FOLLOWED EXACTLY**:
+  - Read FULL BUILD_COORDINATION.md (T001/T002/backend complete; "T003 in progress"; Implementer ID 019f5d95-311f-7850-aeae-8744a43ca682 in worktree; spawn + tester notes visible).
+  - Read specs/004-ai-bd-assistant/{plan.md, tasks.md (T003 selector/factory + T019 MCP update), contracts/crm-client.md, crm_client.py, spec.md}, docs/ARCHITECTURE.md (provider selector + MCP back-compat + env + CrmClient).
+  - Read pre-T003 state in main: src/crm/* (incl. T002 factory stub), src/tool.ts (polymorphic), src/index.ts (hardcoded Bitrix + BITRIX only), package, .env.example.
+  - Monitored T003 worktree `/home/bbartoni/.grok/worktrees/workspace-bitrix24-bd-lead/subagent-019f5d95-311f-7850-aeae-8744a43ca682` (git list/diff/status/mtimes/ls/cat/tail coord; changes detected uncommitted).
+  - Used search_tool on MCP "tasks" (per instructions) before any tool use (scheduling not needed; fs/git monitoring used).
+  - Also inspected: backend adapters factory/config/main (consistency), prior REVIEWs/TESTs, contracts, full diffs.
+
+  **Worktree / changes observed**:
+  - src/crm/index.ts: factory enhanced (env resolve, createCrmClient(config=''), createCrmClientFromEnv(), SUPPORTED_CRM_PROVIDERS, precedence, detailed docs).
+  - src/index.ts: MCP wired to use createCrmClient + CRM_PROVIDER branching; **exact** pre-T003 Bitrix validation/error/exit/URL-check path preserved in else; hubspot path; execute passes selected client.
+  - src/tool.ts: only top comment updated (CrmClient + compat note).
+  - No other files touched. No backend/ contracts / types / adapters changes. BUILD_COORD in wt has no Implementer entry yet.
+  - Main still pre (src unchanged).
+
+  **Verifications performed (run_terminal)**:
+  - Main baseline (pre): npm run build + tsc --noEmit → 0.
+  - Temp overlay of all 3 changed wt src files + tsc --noEmit + full tsc build → 0.
+  - Runtime smoke (node on built with env injects): createCrmClient / createCrmClientFromEnv + SUPPORTED + exports → correct Bitrix/Hubspot instances; fromEnv default + CRM_PROVIDER=hubspot; direct Bitrix24Client still exported/usable.
+  - Full executeBdLead polymorphic sims (factory clients for both): string ids, dates, 5 calls, correct shapes: PASS.
+  - Compat analysis: Bitrix error texts, exits, URL validation, success prefix identical when default; tool name/schema preserved.
+  - Cross-checks: no direct adapter new in wired index; all via CrmClient; env vars match .env (CRM_ for MCP).
+
+  **Review performed vs criteria**:
+  - Exact CrmClient use: YES (factory returns impls; execute receives abstract; no direct calls post-wiring).
+  - No breakage to Bitrix: YES (default path identical byte-for-byte on validation+msgs+ctor flow; reexports + direct use intact).
+  - Support both providers: YES (CRM_PROVIDER + aliases + explicit + fromEnv + config precedence).
+  - Minimal changes: YES (3 src files; wiring + selector only; no logic/schema/prior changes).
+  - Env handling: Good (resolve, strict missing like old, config>env).
+  - Plan/contracts/ARCH: Matches (T003/T019 exact; selector for MCP back-compat; contracts source; ARCH provider selector + thin wrapper).
+  - No impact backend/prior: YES (Python mirrors factory sig; TS foundation + contracts pristine; CrmClient unchanged).
+
+  **Verdict**: **PASS WITH MINOR FINDINGS** (detailed in created REVIEW_FOR_T003.md). High fidelity. Builds/sims green. Strong back-compat + env + minimal. 2-3 polish items (env naming, output labels for non-Bitrix, Implementer coord append).
+
+  **Concrete patches** (see full REVIEW_FOR_T003.md):
+  - Minor: make output "✅ ${providerLabel} entry..." + error prefix (optional, non-blocking).
+  - Doc: .env.example + comments for CRM_PROVIDER.
+  - Process: Implementer append to coord.
+
+  **Actions taken**:
+  - Full multi-reads, worktree monitoring, diffs, temp-overlay builds + runtime smokes + logic sims.
+  - Created REVIEW_FOR_T003.md (full protocol, checklist, verifs, verdict, 5 findings + patches, recs).
+  - This detailed log appended to BUILD_COORDINATION.md.
+  - No src edits (reviewer role only).
+
+  **Recommendations** (see REVIEW_FOR_T003.md for full):
+  - Implementer: Append required coord entry with decisions (compat block, aliases, precedence, why create not always FromEnv).
+  - Coordinator: Sync post-append; update tasks.md; spawn tester.
+  - Tester: Re-verif both providers + default compat + T020 sandbox.
+  - No backend impact.
+
+  **Files by this agent**: REVIEW_FOR_T003.md (created), BUILD_COORDINATION.md (append).
+  **Timestamp**: 2026-07-14. Protocol complete. T003/T019 reviewed + green (with notes). Re-read everything before future.
+

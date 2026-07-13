@@ -10,29 +10,52 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { Bitrix24Client } from './crm/bitrix24.js';
+import { createCrmClient } from './crm/index.js';
 import { BD_LEAD_TOOL, BdLeadSchema, executeBdLead } from './tool.js';
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+// ─── Config (T003/T019: provider selector via CRM_PROVIDER + env config) ──────
+// Backward compat: if CRM_PROVIDER unset or 'bitrix24', exact same validation +
+// error messages + exit behavior as pre-T003 (BITRIX24_WEBHOOK_URL required).
+// HubSpot: CRM_PROVIDER=hubspot + HUBSPOT_ACCESS_TOKEN.
+// Factory used for instantiation (src/crm/index.ts). Direct Bitrix24Client import
+// remains available for any external consumers (no breakage).
 
-const webhookUrl = process.env['BITRIX24_WEBHOOK_URL'];
-if (!webhookUrl) {
-  process.stderr.write(
-    'ERROR: BITRIX24_WEBHOOK_URL is not set.\n' +
-    'Copy .env.example to .env and add your webhook URL.\n'
-  );
-  process.exit(1);
+const rawProvider = (process.env['CRM_PROVIDER'] || 'bitrix24').trim().toLowerCase();
+const isHubspot = rawProvider === 'hubspot' || rawProvider === 'hs';
+
+let client: ReturnType<typeof createCrmClient>;
+
+if (isHubspot) {
+  const token = process.env['HUBSPOT_ACCESS_TOKEN'];
+  if (!token) {
+    process.stderr.write(
+      'ERROR: HUBSPOT_ACCESS_TOKEN is not set.\n' +
+      'Set CRM_PROVIDER=hubspot and provide HUBSPOT_ACCESS_TOKEN (Private App token recommended).\n'
+    );
+    process.exit(1);
+  }
+  client = createCrmClient('hubspot', token);
+} else {
+  // Exact pre-T003 Bitrix24 compat path (including stderr text)
+  const webhookUrl = process.env['BITRIX24_WEBHOOK_URL'];
+  if (!webhookUrl) {
+    process.stderr.write(
+      'ERROR: BITRIX24_WEBHOOK_URL is not set.\n' +
+      'Copy .env.example to .env and add your webhook URL.\n'
+    );
+    process.exit(1);
+  }
+
+  // Basic URL format check
+  try {
+    new URL(webhookUrl);
+  } catch {
+    process.stderr.write(`ERROR: BITRIX24_WEBHOOK_URL is not a valid URL: ${webhookUrl}\n`);
+    process.exit(1);
+  }
+
+  client = createCrmClient('bitrix24', webhookUrl);
 }
-
-// Basic URL format check
-try {
-  new URL(webhookUrl);
-} catch {
-  process.stderr.write(`ERROR: BITRIX24_WEBHOOK_URL is not a valid URL: ${webhookUrl}\n`);
-  process.exit(1);
-}
-
-const client = new Bitrix24Client(webhookUrl);
 
 // ─── MCP Server ───────────────────────────────────────────────────────────────
 

@@ -1,7 +1,8 @@
 /**
  * bitrix24_create_bd_lead
  * Receives output from the B2B Sales Research Skill and creates
- * a Contact, Deal, and 3 Follow-up Tasks in Bitrix24.
+ * a Contact, Deal, and 3 Follow-up Tasks via CrmClient (Bitrix24 or HubSpot).
+ * MCP surface (tool name, input schema, output text format) unchanged for compat.
  */
 
 import { z } from 'zod';
