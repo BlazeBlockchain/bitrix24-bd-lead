@@ -912,3 +912,7 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - Service centralizes flow; /push delegates; mocks green for both; no TS impact.
 - T006 (vault) agents spawned (impl, rev, test) to address open (per-user CRM token encryption/resolution from current_user + CrmConnection).
 - All agents re-reading this file.
+
+**2026-07-14 [Coordinator]** T006 vault agents spawned (impl 019f5daa-7d5d-77d2-86eb-94fbf60c4d0c, rev 019f5daa-8dc4-7cb2-9382-96d5ab671582, test 019f5daa-9b44-7c70-8501-ab3555a13756).
+- Per open clarif + plan: envelope encrypt CRM tokens in CrmConnection, resolve via current_user.
+- All re-reading coord.
