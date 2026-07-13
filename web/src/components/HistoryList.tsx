@@ -8,7 +8,7 @@ import { useAppStore } from '../stores/appStore';
 export const HistoryList: React.FC = () => {
   const { history, clearHistory, setDraft, setProvider } = useAppStore();
 
-  const useSimilar = (item: any) => {
+  const applySimilarFromHistory = (item: any) => {
     const inp = item.input || {};
     setDraft({
       company_name: inp.company_name || '',
@@ -44,7 +44,7 @@ export const HistoryList: React.FC = () => {
                 {new Date(item.timestamp).toLocaleString()} · {item.provider}
               </div>
             </div>
-            <button className="secondary" onClick={() => useSimilar(item)} style={{ fontSize: 12, padding: '4px 10px' }}>
+            <button className="secondary" onClick={() => applySimilarFromHistory(item)} style={{ fontSize: 12, padding: '4px 10px' }}>
               Use similar
             </button>
           </div>
