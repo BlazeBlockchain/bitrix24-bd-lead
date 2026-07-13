@@ -7,17 +7,13 @@
 **Speckit Status**: spec.md, plan.md, tasks.md, data-model.md, research.md, quickstart.md, contracts/ in place and committed.
 
 ## Current Focus / Active Task
-**T001 (Foundation - P1)**: Refactor current `src/client.ts` into `CrmClient` interface + `src/crm/bitrix24.ts` adapter (preserve exact existing behavior for Bitrix24). Also create parallel TypeScript + Python interface definitions for future backend.
+**Backend Skeleton (T004+ / next phase)**: Set up Python FastAPI backend structure (mirroring vanguard-game), implement Python CrmClient adapters for Bitrix24 + HubSpot (matching the TS contracts), basic DB models from data-model.md, Docker/compose updates, health + stub endpoints. T001 + T002 foundation (CrmClient + both adapters) is COMPLETE.
 
-**Why first**: This is the contract that *all* future work (HubSpot adapter, backend orchestration, web, extension, MCP) will depend on. Breaking changes here will cascade. Must be stable before T002/T008 etc.
+**Status**: T001 + T002 complete (agent loop: impl + review + verify). Backend Implementer agent (ID 019f5d8d-e810-7de1-8139-fc5193502a37) is running in worktree. T003 (full selector wiring) can be parallelized once backend needs it.
 
-**Status**: Starting - Implementer agent dispatched.
-**Files expected to change**:
-- src/client.ts → split/move logic
-- New: src/crm/types.ts (or contracts shared)
-- New: src/crm/bitrix24.ts (adapter impl)
-- Updates to src/tool.ts and src/index.ts (minimal, to use new interface)
-- Possibly docs or tests if behavior verified
+**Recent completions**:
+- T001: CrmClient interface + Bitrix24 adapter (committed, verified 100% compat).
+- T002: HubspotClient (src/crm/hubspot.ts + index barrel/factory) — Implementer completed in worktree, Reviewer completed full review (REVIEW_FOR_T002.md, minor suggestions applied e.g. assoc ID comment). Builds + shape sims green. No breakage to Bitrix/CrmClient/execute flow. Committed.
 
 ## Agent Roles & Current Assignments
 - **Implementer Agent**: Writes code, follows plan + tasks + contracts exactly. Updates BUILD_COORDINATION.md with "What I built", "Files touched", "Decisions made", "Open questions for others". Works in isolated worktree when possible. Produces clean, documented changes.
@@ -365,3 +361,11 @@ T002 COMPLETE. CrmClient now has Bitrix + HubSpot. Ready for T003 (full wiring),
 
 **2026-07-14 [Coordinator]** T002 full loop closed: Reviewer review received (positive, minor notes on assoc comments), artifacts committed (REVIEW_FOR_T002.md). Backend Implementer spawned for next phase (skeleton + Python adapters). T001/T002 foundation solid in src/crm (both adapters + factory). Builds/sims verified. Coordination updated.
 
+
+**2026-07-14 [Implementer T002 ID 019f5d88-ceaa-7682-9621-b110846f88f7]** T002 COMPLETE. Delivered src/crm/hubspot.ts (full HubspotClient impl native fetch + v3 + associations type 3/216 + hs_timestamp ms + 09:00Z parity + exact CrmClient contract). Added src/crm/index.ts (barrel + createCrmClient factory). Updated Python stub. Verified build + mock sims (correct shapes, no Bitrix impact). Updated local BUILD_COORDINATION.md + worktree. See full output for decisions (associations at create, defaults documented, minimal factory). Ready for review/sync.
+
+**2026-07-14 [Reviewer T002 ID 019f5d88-e126-7ad1-973e-c1f693bae38b]** T002 review COMPLETE. Inspected worktree post-impl. Overall: high quality, contract exact, style match to bitrix24.ts, no breakage, excellent comments. Minor: added clarifying comment on assocTypeId 216 (applied in main). Created/expanded REVIEW_FOR_T002.md with full checklist, patches, recs (sandbox validate IDs, note pipeline defaults). Appended detailed logs to coord (main + worktree). Positive verdict — ready for tester/commit.
+
+**2026-07-14 [Tester T002 ID 019f5d88-f0e0-7e73-b6f5-c93299df0160]** Verified post-T001 foundation + expected T002 shapes (via mocks after impl appeared). Builds clean, Bitrix flow 100% preserved (polymorphic CrmClient), HubSpot shapes correct (associations, hs_timestamp=number ms epoch, string ids). Created TEST_REPORT_T002.md + appended to coord. Noted open auth/ctor for backend, T020 needs real token. Handed back for final sync/commit when ready. (Ran initial report pre-impl, re-verified on completion.)
+
+**2026-07-14 [Coordinator]** Synced final T002 from Implementer worktree to main (hubspot.ts, index.ts, py stub). Applied reviewer assoc comment polish. Re-ran build + sims (green, correct ts calc + assoc bodies). Updated this coord file with summaries + current focus shift to backend. Committed T002 polish + reports. T002 loop closed. Backend agent in progress (worktree). Next: monitor backend, spawn its reviewer/tester once ready, or T003 wiring. Open clarifications (HubSpot token in backend, exact assoc validation, sandbox for T020) noted in prior reports.

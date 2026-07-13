@@ -186,7 +186,8 @@ export class HubspotClient implements CrmClient {
       // hs_task_type omitted (defaults to TODO in HubSpot)
     };
 
-    // Associate task -> deal (216 = Task to deal)
+    // Associate task -> deal (216 = Task to deal per HubSpot HUBSPOT_DEFINED)
+    // Note: 216 is the standard typeId for task-to-deal associations in v3 (validate in sandbox if custom objects/pipelines are used).
     // We only have dealId in CrmTask (no contactId passed from orchestration).
     // Per task spec "associate to deal+contact if possible": associate to deal here.
     // (Contact association 204 would require extending CrmTask with optional contactId.)
