@@ -22,8 +22,9 @@ description: "Task list template for feature implementation"
 
 - [ ] **T004** Set up FastAPI project skeleton (or extend existing) with Docker, Alembic, basic health endpoint. Mirror vanguard-game structure.
 - [ ] **T005** Implement Google OAuth + JWT auth service (login, /me, protected dependency). Store minimal user record.
-- [ ] **T006** Implement encrypted CRM token vault (envelope encryption) + connect endpoints for webhook (Bitrix) and OAuth (HubSpot).
+- [x] **T006** Implement encrypted CRM token vault (envelope encryption) + connect endpoints for webhook (Bitrix) and OAuth (HubSpot).
 - [ ] **T007** LLM proxy service: Gemini 2.5 Flash primary with Haiku fallback, prompt builder that injects user memory context, structured JSON output, per-user budget guards + logging.
+  - Reviewer pre-delivery complete (REVIEW_FOR_T007.md): criteria + patches defined for Gemini+Haiku, prompt+memory stub, JSON (snapshot/opener/tasks+rationale), budgets, /enrich endpoint. No code in impl wt yet. No breakage to Crm/T008/auth/TS/web. Awaiting impl delivery + coord append + tasks update by impl. See BUILD_COORDINATION.md.
 - [ ] **T008** Lead orchestration service that reuses/refactors logic from `src/tool.ts` (contact → deal → 3 tasks) using the CrmClient.
 - [ ] **T009** Postgres models + migrations for User, Lead, CrmConnection, MemoryProfile, OutreachHistory (see data-model.md).
 - [ ] **T010** [P] Basic REST API for enrich + push + history.

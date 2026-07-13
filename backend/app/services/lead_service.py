@@ -6,7 +6,8 @@ Centralizes the exact lead creation flow previously inline in main.py /push
 
   createContact -> createDeal (with contactId) -> 3x createTask (dueDate +4/+9/+14, dealId)
 
-- Uses create_crm_client(provider, token) EXACTLY (no direct adapter usage).
+- Uses create_crm_client(provider, token, current_user=...) EXACTLY (no direct adapter usage).
+  T006: token is plaintext resolved by vault (or override); current_user enables factory vault fallback.
 - Simple date helpers here (moved from duplicated _add_days stub).
 - Returns core result dict: {contact_id, deal_id, task1/2/3: {id, date}}
 - Accepts LeadPushInput (Pydantic) or plain dict (stub; full models + validation in T009).
@@ -41,7 +42,8 @@ async def create_lead_with_followups(
     """Create contact + deal + 3 follow-up tasks via CrmClient.
 
     Exact flow and field construction as exercised by current /push stub.
-    current_user passed for future (T009+) per-user context / auditing (not used in CRM calls here).
+    current_user passed for T006 vault resolution (in factory) + T009+ per-user context / auditing.
+    Token passed must be the resolved plaintext (vault handles encrypt/decrypt outside CrmClient path).
     """
     # Support Pydantic model (LeadPushInput) or dict (flexible for tests/mocks)
     if hasattr(lead_input, "model_dump"):
@@ -62,7 +64,9 @@ async def create_lead_with_followups(
     notes = data.get("notes", "")
     signal_type = data.get("signal_type", "")
 
-    client = create_crm_client(provider, token)
+    # T006: pass current_user so factory can resolve via vault if token empty (but caller should resolve first).
+    # Token here is plaintext (resolved/decrypted by vault or ?token override).
+    client = create_crm_client(provider, token, current_user=current_user)
 
     # 1. Contact (exact dict shape used in main stub + supported by both adapters)
     contact = await client.createContact({

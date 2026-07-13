@@ -10,3 +10,4 @@ pydantic-settings==2.1.0
 httpx==0.27.0
 # Auth (T005+): python-jose for real JWT (HS256 etc). Current uses stdlib placeholder in get_current_user.
 python-jose[cryptography]==3.3.0
+cryptography>=41.0.0  # for T006 token_vault envelope encryption stub (Fernet); also pulled by jose[crypto]

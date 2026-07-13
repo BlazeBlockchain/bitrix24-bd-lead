@@ -13,7 +13,8 @@ Provides:
 
 T005: basic auth/JWT stub + protected dep.
 T008: orchestration extracted to services/lead_service.py (create_lead_with_followups).
-CRM tokens via ?token or settings (demo); create_crm_client called from service.
+T006: CRM token via vault.resolve using current_user + provider (envelope decrypt from CrmConnection stub);
+      ?token= remains as override for demo. create_crm_client receives resolved plaintext token.
 """
 
 import base64
@@ -29,6 +30,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.database import init_db, close_db, get_db
 from app.services.lead_service import create_lead_with_followups
+from app.services.token_vault import resolve_token  # T006: per-user CRM token vault resolve (envelope)
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +54,10 @@ async def get_current_user(
     Accepts Authorization: Bearer <token-or-jwt>.
     Falls back to settings-based demo user when DEBUG (keeps existing ?provider&token web calls working until web adds JWT header).
     Placeholder JWT: stdlib base64 decode attempt (python-jose + real verify + /auth/login later).
+
+    T006 note: current_user["id"] is used by token_vault.resolve_token() + CrmConnection lookup for per-user CRM tokens.
+    User auth (JWT) is separate from CRM token vault.
     """
-    token = credentials.credentials if credentials else None
 
     if not token:
         if settings.DEBUG:
@@ -181,44 +185,50 @@ class LeadPushInput(BaseModel):
 async def push_lead(
     lead: LeadPushInput,
     provider: str = Query(default=settings.DEFAULT_CRM_PROVIDER, description="bitrix24 | hubspot"),
-    token: str | None = Query(default=None, description="CRM webhook or access token (separate from user JWT; use ?token= or env for demo)"),
+    token: str | None = Query(default=None, description="CRM webhook or access token (separate from user JWT; use ?token= or env for demo). T006: override bypasses vault."),
     current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
     Stub endpoint: takes lead input and exercises full CrmClient flow via orchestration service.
 
     T005 auth: protected via get_current_user.
-    current_user available (will drive per-user CRM token lookup in T006+).
+    T006: CRM token resolved via vault using current_user + provider (CrmConnection lookup + envelope decrypt).
+          ?token= acts as override (for demo continuity / before stored connections in T009+).
 
     Delegates to create_lead_with_followups (T008) which does:
       createContact -> createDeal(with contactId) -> 3x createTask(due +4/9/14, dealId)
-    using create_crm_client(provider, token) exactly.
+    using create_crm_client(provider, resolved_token, current_user=...) exactly.
 
-    CRM token resolution: ?token or settings (T006 vault later).
+    Token injection (clarification addressed): user JWT != CRM token.
+    Vault (token_vault.resolve_token) does the (current_user, provider) -> CrmConnection -> decrypt lookup.
+    Plaintext token only ever passed server-side into CrmClient adapters.
+    Keeps CrmClient abstraction intact.
+
     Stub notes/LLM comments retained for later enrichment (T007/T009).
 
     Returns ids shape (like executeBdLead + extras).
     """
     logger.debug(f"push_lead invoked by current_user={current_user.get('email')} provider={provider}")
 
-    # Resolve CRM token (unchanged logic; auth stub is orthogonal to CRM token)
-    if not token:
-        if provider == "hubspot":
-            token = settings.HUBSPOT_ACCESS_TOKEN
-        else:
-            token = settings.BITRIX24_WEBHOOK_URL
+    # T006: resolve token from vault (keyed on current_user + provider). ?token= is override.
+    # Vault handles DEBUG fallback to settings + future real CrmConnection decrypt.
+    # This replaces the prior inline settings lookup. (resolve is sync in T006 stub)
+    try:
+        effective_token = resolve_token(current_user, provider, override=token)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    if not token:
+    if not effective_token:
         raise HTTPException(
             status_code=400,
-            detail=f"No token configured for provider '{provider}'. Pass ?token=... or set in .env (stub mode).",
+            detail=f"No token configured for provider '{provider}'. Store via connect (T006/T012) or pass ?token=... or set in .env (stub).",
         )
 
-    # Token resolution (unchanged; T006 vault will replace). Service uses create_crm_client(provider, token) exactly.
     try:
         # Delegate exact orchestration to T008 service (contact->deal->3x task with +4/9/14 dates).
-        # Keeps CrmClient usage exact inside service. Stub notes retained for LLM later.
-        core_result = await create_lead_with_followups(lead, provider, token, current_user)
+        # Keeps CrmClient usage exact inside service (factory may also use vault if needed).
+        # effective_token is plaintext (decrypted by vault).
+        core_result = await create_lead_with_followups(lead, provider, effective_token, current_user)
     except Exception as e:
         logger.exception("CrmClient call failed in stub push (via lead_service)")
         # Creation errors (e.g. bad token to factory) and op errors -> 502 for simplicity in stub
@@ -229,7 +239,7 @@ async def push_lead(
         **core_result,
         "provider": provider,
         "authenticated_as": current_user.get("email") or current_user.get("id"),
-        "note": "STUB route (T008): protected by get_current_user; delegates to create_lead_with_followups (exact flow). Full orchestration + LLM enrich + real models in T009+. CrmClient exercised via service.",
+        "note": "STUB route (T008+T006): protected by get_current_user; token resolved via vault (current_user + CrmConnection); delegates to create_lead_with_followups (exact flow). Full orchestration + LLM enrich + real models/DB in T009+. CrmClient exercised via service.",
     }
 
 

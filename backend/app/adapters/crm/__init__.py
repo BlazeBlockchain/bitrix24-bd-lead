@@ -40,19 +40,41 @@ __all__ = [
 type CrmProvider = str  # 'bitrix24' | 'hubspot'
 
 
-def create_crm_client(provider: CrmProvider = "bitrix24", config: str = "") -> CrmClient:
-    """Minimal factory (auth stub: config is webhook or token).
+def create_crm_client(provider: CrmProvider = "bitrix24", config: str = "", current_user: dict | None = None) -> CrmClient:
+    """Factory for CrmClient (Bitrix24/HubSpot).
+
+    config: plaintext webhook URL or access token (after vault resolution).
+    current_user: optional (T006) — if provided and no config, resolves via token vault
+                  using current_user + provider (per CrmConnection).
 
     Defaults to bitrix24 for back-compat with existing MCP.
-    Later: select from per-user CrmConnection (encrypted).
+    Token resolution: prefer explicit config (from ?token or vault.resolve in caller);
+    falls back to per-user vault lookup when current_user passed (see token_vault.py).
     """
+    if not config and current_user:
+        # T006: resolve from vault (envelope decrypt per current_user + provider)
+        # Lazy import to avoid cycles (vault may be used by main/service too).
+        try:
+            from app.services.token_vault import resolve_token
+            config = resolve_token(current_user, provider)
+        except Exception as e:  # pragma: no cover
+            # Fall through to settings fallback (dev safety)
+            import logging
+            from app.config import settings as _s
+            logging.getLogger(__name__).debug(f"vault resolve in factory failed, using settings fallback: {e}")
+            if provider == "hubspot":
+                config = _s.HUBSPOT_ACCESS_TOKEN
+            else:
+                config = _s.BITRIX24_WEBHOOK_URL
+
     if not config:
-        # Lazy to avoid circulars during module load; auth stub for T004
+        # Original T004 stub fallback (settings)
         from app.config import settings
         if provider == "hubspot":
             config = settings.HUBSPOT_ACCESS_TOKEN
         else:
             config = settings.BITRIX24_WEBHOOK_URL
+
     if provider == "hubspot":
         return HubspotClient(config)
     return Bitrix24Client(config)

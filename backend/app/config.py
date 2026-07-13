@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # CRM auth stubs (T004; real vault + per-user in T006)
     # For Bitrix: full webhook URL e.g. https://.../rest/123/TOKEN/
     # For HubSpot: access token (private app or OAuth)
+    # T006+: these are fallbacks only; primary source is encrypted in CrmConnection via token_vault.
     DEFAULT_CRM_PROVIDER: str = "bitrix24"
     BITRIX24_WEBHOOK_URL: str = ""
     HUBSPOT_ACCESS_TOKEN: str = ""
@@ -32,6 +33,9 @@ class Settings(BaseSettings):
     DEMO_AUTH_TOKEN: str = "demo-stub-jwt"  # for direct testing of protected routes in skeleton
 
     # Future: ENCRYPTION_KEK, GEMINI_API_KEY etc. (T006+)
+    # ENCRYPTION_KEK: master key for envelope encryption of per-user CRM tokens (see token_vault.py).
+    # Real prod: load from KMS/secret; dev value must be 32+ bytes (Fernet b64url or raw will be adapted).
+    ENCRYPTION_KEK: str = "dev-encryption-kek-change-me-32bytes-min-for-t006-vault!!"
 
     class Config:
         env_file = ".env"
