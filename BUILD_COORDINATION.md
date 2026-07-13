@@ -704,3 +704,13 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - Web skeleton + polish + verification committed (e44cf2a + prior).
 - All agents informed via coord (T001-T003/backend stable).
 - Next phase: T005 (auth/JWT stub) or T008 (orchestration centralize in backend) or T012/T013 real flows. Spawn next implementer.
+
+**2026-07-14 [Coordinator]** Spawning next loop: T005 (auth stub / JWT in backend + basic protected).
+- Per plan (T005 after skeleton): implement simple auth (token or placeholder JWT), protected deps, update /push to require/use auth.
+- Will spawn Implementer, Reviewer, Tester for it.
+- Keep all informed (coord updated).
+
+**2026-07-14 [Coordinator]** Web loops fully closed (reviewer 019f5d99-b653... PASS + patches applied; tester 019f5d99-c40e... GREEN, journey verified, lint fix). Committed web polish + tester.
+- T005 auth implementer (019f5d9f-59b1-7ec3-9544-4d634c8882ad), reviewer (019f5d9f-6559-7aa2-9a2b-454079f955aa), tester (019f5d9f-7256-7f11-8325-7d611fc73f87) spawned.
+- All agents re-reading this coord for shared info (T001-3 + backend + web stable; no breakage).
+- Next: wait for T005 agents; then T008 or T012 real connect.
