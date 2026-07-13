@@ -110,7 +110,20 @@ npm run dev
 
 ---
 
-## Tool reference
+## Documentation
+
+This project has moved from a pure MCP server to an **AI-native BD assistant** (web + browser extension + backend). See the product foundation docs:
+
+- [CONCEPT.md](./docs/CONCEPT.md) — Problem, market, solution & UVP, target users
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Tech stack, DB schema, Google Auth, API integrations, deployment
+- [FEATURES.md](./docs/FEATURES.md) — MVP must-haves, acceptance criteria, user stories, priorities
+- [UI_UX.md](./docs/UI_UX.md) — Screens, navigation, journeys, components, accessibility
+
+Companion planning docs (historical context):
+- `docs/development-options.md`
+- `docs/market_research.md`
+
+## Tool reference (MCP engine — still supported)
 
 **Tool name:** `bitrix24_create_bd_lead`
 
