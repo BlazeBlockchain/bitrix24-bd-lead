@@ -1237,6 +1237,47 @@ Timestamp: 2026-07-14. All mandatory reads, monitoring of Implementer+Reviewer, 
 - T013: Lead Composer page (form, Generate AI, preview, Push)
 - T014: History page (list, detail, use similar)
 - T015: Basic Dashboard + usage display
+
+- **2026-07-14 [Tester / Committer Agent for T007 LLM proxy]** 
+  **MANDATORY PROTOCOL + RE-READS**: Read FULL BUILD_COORDINATION.md (T007 spawn + reviewer post + T006 complete + "MUST update tasks/coord/REVIEW/other .md"); re-read tail; specs/004-ai-bd-assistant/{plan.md, tasks.md, spec.md (FR-003/5/8 NFR-001), data-model.md}; docs/{ARCHITECTURE.md (full LLM/enrich/budget/memory), UI_UX, FEATURES}; REVIEW_FOR_T007.md; backend (main.py w/ /enrich+push, services/llm_service.py + lead_service.py (enrich before Crm + current_user), config, adapters/crm/*); src/tool.ts (execute + BdLeadResult); web preview stubs; package/reqs/docker; used search_tool first for MCP tasks (not relevant for project tasks).
+  **Inspected state**: llm_service.py (369 lines) present in main (untracked in git at start); lead_service + main.py have T007 integration (enrich call, rich descs, enriched_preview, /enrich route); CrmClient adapters + factory + TS src/ 100% untouched. Mixed T006/T007 notes reconciled (current_user passed). llm identical to wt.
+  **Builds green**:
+    - TS: `npm run build` + `npx tsc --noEmit` (exit 0) — no breakage to CrmClient/executeBdLead/MCP.
+    - PY: py_compile 3.12 on llm_service, lead_service, main, config, crm/*.py → SUCCESS.
+    - docker compose config → OK.
+  **LLM proxy (mocks Gemini/Haiku) tests** (direct, no keys/DEBUG):
+    - generate_enrichment(brief) → shape {company_snapshot, personalized_opener, follow_ups:[{title,description,due_in_days,rationale} x3], model_used, mock?, memory_note}.
+    - Memory: _build_memory_context + prompt injects tone/ICP/cadence/history stub (current_user + hook for T006).
+    - Structured parse defensive (fences, variants like snapshot/opener, tasks/follow_ups); 3 tasks always; due 4/9/14.
+    - Primary/fallback: code paths Gemini -> Haiku -> final mock exercised.
+    - Cost: cheap models; est 1c.
+  **Budgets**:
+    - _check_budget daily per uid (in-mem _user_daily_usage); exceed -> logger.warning + return mock w/ "note":"budget_exceeded_mocked".
+    - _record_usage + LLM_USAGE structured log (model, tokens, cost_cents, daily_total) matching data-model.
+    - Force exceed test (set budget=0 non-debug) → mock, valid shape, no crash.
+  **T008/CrmClient integration for both providers** (mocked factory):
+    - For "bitrix24" and "hubspot": lead_service.create_lead_with_followups → exactly:
+      1x createContact({name,role,company}), 1x createDeal({title,contactId,comments=AI snapshot+opener+...}), 3x createTask({title,description, dueDate, dealId}).
+    - Dates: task1/2/3 = +4/+9/+14 days YYYY-MM-DD.
+    - Links: deal uses contactId str; tasks use dealId str.
+    - Result: core {contact_id,deal_id,taskN:{id,date}} + "enriched_preview" (snapshot,opener,follow_ups,model,memory_note) additive.
+    - Matches BdLeadResult from src/tool.ts; Crm calls identical pre-T007 (adapters no change).
+    - /push and direct service use same (T006 resolve_token upstream).
+  **No breakage**:
+    - Crm adapters (bitrix/hubspot/types + __init__ factory): untouched (diff none; all CRM thru create_crm_client).
+    - TS/MCP: src/tool.ts (executeBdLead polymorphic), crm/, index build clean; old Bitrix flow reference preserved.
+    - Web: client.ts/App/Composer/Preview tolerant to enriched_preview + snake_case fields.
+    - Auth/T005/T006: Depends(get_current_user) on enrich/push; current_user forwarded; token separate.
+    - Errors: LLM graceful to mock; budget handled; Crm -> 502.
+    - No TS/web/src changes; py/TS/docker green.
+  **Other verifs**: direct import of lead_service + mocks exercised full T007 path; main import syntax (py_compile); /enrich standalone (no token/CRM).
+  **Verdict**: **GREEN / STRONG PASS**. LLM proxy (mocks + Gemini/Haiku), T008 integration both CRMs, budgets, structured+memory, builds, no breakage — all pass per user query + spec/plan/ARCH/REVIEW. CrmClient/T008/TS/MCP/auth intact. Ready to commit.
+  **Commit**: Will git add llm_service.py (untracked), commit docs+code state with tester signoff.
+  **Files touched by tester (docs only + git prep)**: specs/004-ai-bd-assistant/tasks.md (T007/T008 status + tester note), REVIEW_FOR_T007.md (added full tester verif section), BUILD_COORDINATION.md (this append).
+  **Decisions / shares**: T007 complete; enriched now powers dynamic CRM text + preview; memory hook ready (T006/T009); budget stub pre-T009; /enrich additive for T013. Minor: utcnow deprecation (pre-existing style). Open: real keys for live, T009 ledger persist, web full call.
+  **Timestamp**: 2026-07-14 ~ (after full runs). Re-read coord+specs+plan at start + multiple. MCP search_tool used. All updates shared. If green (is) → commit now.
+
+**2026-07-14 [Tester / Committer]** ALL TESTS GREEN. Proceeding to commit + final .md updates.
 - T016: MV3 extension scaffold (manifest, popup, service worker)
 - T017: Thin client extension (enrich/push using stored JWT/token, host detection)
 - T018: Options page extension (linking to web dashboard)
@@ -1291,3 +1332,85 @@ Pending tasks spawning now:
 - Polish: Full test coverage for adapters and orchestration
 - Polish: Extension store submission assets
 
+- **2026-07-14 [Reviewer / Scrutinizer Agent for T009: Postgres models]** 
+  **MANDATORY PROTOCOL FOLLOWED EXACTLY** (re-reads via read_file + run_terminal + grep + find + multiple polls):
+  - Read FULL latest BUILD_COORDINATION.md (T001-T008 complete/committed in parts; T007 LLM post-review PASS; "T009 Postgres models + migrations" pending + "spawning agents for ... T009"; "ALL AGENTS MUST update tasks.md, BUILD_COORDINATION.md, REVIEW*.md + other .md"; coordinator spawn notes).
+  - Read specs/004-ai-bd-assistant/{plan.md (T009 desc), tasks.md (T009 + status), data-model.md (exact 6 entities + rels + indexes + vectors + Alembic), spec.md (memory/ledger/enrich/history refs), contracts/*}.
+  - Read docs/ARCHITECTURE.md (DB schema section matching data-model; pgvector; Alembic; server models).
+  - Read backend current: models/{base,user,crm_connection,__init__}.py (stubs only + T009 prep comments), alembic/versions/001_initial.py (users+crm+vector ext; autogenerate note), database.py (get_db ready, limited imports), main.py (comments "real models/DB in T009+"), services/{lead_service.py ("Prepares for T009"), token_vault.py (commented real CrmConnection query for T009; db=None param), __init__}, alembic/env.py, config, requirements, docker-compose.
+  - Monitored worktrees (recent subagent-* via git list/find/status/diff/ls models/): no T009 delivery (no lead.py/memory_profile etc; all show only stubs). No new alembic revs. No T009 appends yet in wt coords.
+  - Used search_tool first on "tasks" MCP before considerations (schema ok; used fs/git/run exclusively for monitoring).
+  - Additional: read prior REVIEWs (esp BACKEND_SKELETON, T006, T007, T008 noting T009 prep), src/tool.ts (shapes for enriched), .env.example.
+  - Verifs (run_terminal): py_compile models+db+alembic+services GREEN; npm build + tsc --noEmit clean (TS no impact); docker compose valid; Crm both providers mocks via service intact (1c+1d+3t exact); current models importable.
+  **Pre-delivery review performed**: Full protocol + checklist from data-model (users expand, new user_memory_profiles w/ vector, leads w/ enriched JSON + crm ids, crm_connections expand, outreach_history w/ vector, usage_ledger); relationships/indexes; Alembic; no-breakage (CrmClient/T006 vault/T007 llm/T008 service/auth/TS/web/MCP all preserved); T010 prep (get_db ready, persist hooks commented, current_user id usable).
+  **Verdict (pre)**: **STRONG FOUNDATION / READY**. Schema spec + stubs + alembic + prep comments + db layer align perfectly. Current /push + Crm + LLM flows work w/o models (DEBUG). No breakage. Pre-verifs green.
+  **Detailed in**: Created/expanded full REVIEW_FOR_T009.md (mandatory reads list, current state, 12+ item checklist, concrete patches for models/mig/reqs, T010 prep notes, recs).
+  **Actions**: Created REVIEW_FOR_T009.md; updated tasks.md (T009 bullet + status note); appended this log to BUILD_COORDINATION.md; no backend/source edits (reviewer).
+  **Files by this agent**: REVIEW_FOR_T009.md (new), specs/004-ai-bd-assistant/tasks.md (T009 note), BUILD_COORDINATION.md (this append).
+  **Recommendations**: Implementer: deliver exact data-model schema + Alembic + pgvector dep + model exports + imports; append "what built" to wt coord + update tasks; re-verify no breakage to Crm flows. Reviewer post: update REVIEW verdict. Tester: migration test + flow mocks. Coordinator: sync after green; update mds. Prep T010 (real queries/persist using get_db).
+  **Opens shared**: vector dim, exact encrypted col type (bytea/JSON), pgvector index syntax, when to wire queries (T009 models vs T010).
+  Timestamp: 2026-07-14. Protocol + reads + pre-verifs + doc updates complete. T009 review prep done. Re-read before edits. Share via updates.
+
+**ALL AGENTS**: Info shared: T009 review prep (REVIEW_FOR_T009.md) complete pre-impl. Current models are stubs matching skeleton; full per data-model required for match + T010. No breakage to existing (Crm adapters, vault, lead_service, llm, auth, TS). Foundation ready. Update mds on delivery.
+
+---
+**2026-07-14 [Reviewer / Scrutinizer Agent for T007 LLM proxy (current assigned subagent task)]**
+**MANDATORY PROTOCOL + RE-READS (multiple, explicit)**: 
+- Read FULL BUILD_COORDINATION.md (start + T007 sections + end; coordinator spawn notes + "ALL AGENTS MUST re-read... UPDATE tasks.md, BUILD_COORDINATION.md (append review), REVIEW_FOR_T007.md, other .md"; T006 complete; T007 impl in WT 019f5dad-8928-7872-8d9d-469693e2f185; prior reviewer/tester entries).
+- Read specs/004-ai-bd-assistant/{plan.md (T007: services/llm_proxy Gemini+Haiku memory-inject structured budget), tasks.md (T007 desc + updates), spec.md (FR-003/FR-005/FR-008/NFR-001), data-model.md (enriched, usage_ledger), contracts/*}.
+- Read docs/{ARCHITECTURE.md (full LLM proxy: /enrich Gemini Flash + Haiku, {companySnapshot, emailOpener, followUps+rationale}, budget guard, memory context), UI_UX.md, FEATURES.md, CONCEPT.md, all prior REVIEW_*.md (T008 stub LLM note, T007 pre/post, T006 etc)}.
+- Read backend code: main.py (get_current_user + /push + /enrich), services/{lead_service.py (T008 + T007 wiring), llm_service.py (WT), token_vault.py, __init__}, config.py (LLM keys+budget), adapters/crm/* (CrmClient Protocol + factory + bitrix/hubspot; current_user support), models, requirements, .env.example. 
+- Read src/tool.ts (BdLeadResult + executeBdLead orchestration + rich task*Description + addDays for ref), src/index.ts, web/src/{api/client.ts (push + future enrich), components/{Composer,Preview}.tsx (stub shapes)}.
+- Monitored WT: git worktree list, ls/find/diff/status on subagent-019f5dad-8928... (llm_service.py + M lead/main/config); full read_file of delivered llm_service.py (370 lines); WT coord append inspected (detailed what-built/decisions/verifs). Used `search_tool` first (MCP "tasks" schema) before any use_tool.
+- Re-ran verifs (run_terminal): py_compile (3.12) on llm+lead+main+config+factory (GREEN); npm run build + npx tsc --noEmit (GREEN, src untouched); docker compose; functional LLM + integ mocks.
+**Worktree state**: Isolated to backend (llm new; lead/main/config/reqs updated); no adapters/src/web change. CrmClient factory call in WT lead pre-T006 update (divergence noted).
+**Review criteria (from user query + spec/plan/ARCH/T007 desc) + results**:
+- LLM impl: Gemini 2.5 Flash primary (_call_gemini google-generativeai + to_thread + parse) + Haiku fallback (_call_haiku AsyncAnthropic) + final mock: **PASS**.
+- Memory context injection in prompt: _build_memory_context + first in _build_prompt (tone/ICP/cadence/history from current_user stub + memory_context hook): **PASS**.
+- Structured JSON (snapshot/opener/3 follow_ups w/ title/desc/due_in_days/rationale): _parse_structured_json (fences/variants/normalize/defaults) + shape in generate/mocks: **PASS** (matches data-model, FR-003, ARCH, src/tool.ts ref).
+- Per-user budget guards + logging: _check_budget (daily _user_daily_usage, LLM_DAILY_BUDGET_CENTS, DEBUG bypass), exceed->mock+note; _record_usage (LLM_USAGE log + cents) matching usage_ledger: **PASS**.
+- Integration (pre-Crm in lead_service, enrich for CRM text + enriched_preview return): **PASS**. Exact CrmClient calls (provider, token), fields, due YYYY-MM-DD, links (contactId/dealId), +4/9/14, string ids. Both prov. Additive only.
+- No breakage: TS builds clean (src/tool.ts executeBdLead / BdLeadResult / CrmClient untouched); web stubs compat (additive); auth (Depends get_current_user on both /enrich+/push); adapters/crm untouched; MCP/TS tool flow intact; prior T001-6 shapes preserved. Verified in sims.
+- Quality: mocks deterministic, prompt explicit "JSON ONLY" + contract, cost cheap, errors graceful (fallback to mock), comments/refs good. Stub design correct (T009 for real).
+**Verifs executed (detailed)**: 
+- py/TS/docker: all GREEN.
+- generate_enrichment(brief, user): shape keys, 3 follow_ups+rationale, memory_note, mock.
+- Budget force: -> note "budget_exceeded_mocked".
+- lead_service integ (mock client): 1 contact +1 deal (w/ AI snapshot/opener in comments) +3 tasks (titles/descs from follow_ups) + enriched_preview; exact for bitrix24+hubspot.
+- Shape compat: matches BdLeadResult in src/tool.ts + web expectations.
+**Detailed findings + patches/feedback**:
+- **STRONG PASS** (all criteria met at high quality; impl elegant, no breakage). Resolves T008 "stub descs" by making LLM drive rich text. Memory hook ready. /enrich ready for web T013. Budget informative. Parser robust.
+- Minor #1 (sync risk): WT lead_service: `client = create_crm_client(provider, token)` ; main (post-T006): passes `current_user=...` and factory accepts it for vault resolve. WT factory sig lacks current_user param. (CrmClient unaffected since token passed explicitly; harmless in WT but on sync may need reconcile.)
+  Patch suggestion (for coordinator on sync or impl re-apply):
+  ```
+  # file_path: backend/app/services/lead_service.py (in WT or post-sync)
+  client = create_crm_client(provider, token, current_user=current_user)
+  ```
+  (Update WT factory too if needed for sig compat: add `, current_user: dict | None = None`.)
+- Minor #2 (budget): exceed always mocks (good for UX). Optional strict: if not DEBUG raise (map to 429 in main). Patch example already in prior REVIEW.
+- Minor #3 (usage): _record_usage uses fixed 400/250 tokens. Future: capture from SDK resp.usage_metadata / msg.usage for accuracy.
+- Minor #4 (model name): ANTHROPIC_MODEL="claude-3-5-haiku-20241022" (current correct); ARCH mentions "Haiku 4.5" as aspirational.
+- Minor #5 (no source change to TS/web/adapters): Confirmed zero. Good.
+- Process compliance: Impl updated WT coord/tasks/REVIEW; no assumption. This review re-ran all + appended.
+**Actions taken**:
+- Full re-reads + WT inspect + run verifs (builds +  LLM mocks + 2-prov Crm integ).
+- Updated specs/004-ai-bd-assistant/tasks.md (T007 [x] + summary).
+- Updated REVIEW_FOR_T007.md (this new dedicated review section + verdict).
+- Appended this to BUILD_COORDINATION.md.
+- No edits to source (per reviewer role); patches described for feedback.
+**Files touched by this reviewer**: REVIEW_FOR_T007.md, BUILD_COORDINATION.md, specs/004-ai-bd-assistant/tasks.md (docs only).
+**Recommendations for others**:
+- Coordinator/Tester: after this, sync WT (llm+integrations+docs) to main; reconcile T006 current_user forward in lead_service/factory; re-verify; commit. Use "feat(backend): T007 LLM proxy..." prepared in prior.
+- Share to team: enriched_preview in push result (for web/history); /enrich endpoint live; generate_enrichment(memory_context=) hook for T006 profiles/T009; CrmClient 100% untouched.
+- T009: persist ledger + query memory_profiles into llm.
+- T013: wire web to POST /api/leads/enrich + render snapshot/opener/follow_ups.
+- Re-read coord + specs before next edits. Info shared here to prevent breaks.
+**Verdict**: **STRONG PASS**. LLM impl, integration (T008), no breakage (Crm/TS/web/auth/MCP) confirmed. All query requirements satisfied. Foundation for memory + preview solid.
+**Timestamp**: 2026-07-14. Protocol complete (re-read coord first, all reads, search_tool first, verifs, updates to mds, patches/feedback). Ready.
+
+---
+**Agents: Always append your work log below this line. Read everything above first.**
+
+
+**2026-07-14 [Coordinator]** User: "spawn all possible tasks". From current tasks.md, pending are T004 (but history says done, verify), wait from latest read T004-6 still [ ], but monitor and previous show T007 done, T008 done, T006 done. To be safe, spawning trios for all still marked [ ] or not fully verified: T009, T010, T012, T013, T014, T015, T016, T017, T018, T020, T022, T023, and polish items.
+All agents: Re-read BUILD_COORDINATION.md + specs FIRST. UPDATE tasks.md, BUILD_COORDINATION.md (append your section), REVIEW_*.md, other .md with progress/decisions/verifs. Share info. No breaking changes.
