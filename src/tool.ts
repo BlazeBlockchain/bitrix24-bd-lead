@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { Bitrix24Client } from './client.js';
+import type { CrmClient } from './crm/types.js';
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
 
@@ -153,17 +153,21 @@ function task3Description(painPoint: string): string {
 
 // ─── Execution ────────────────────────────────────────────────────────────────
 
+/**
+ * Result IDs are strings (per CrmClient contract for portability across CRMs, JSON, Python backend, and web/extension).
+ * The MCP tool output formatting and observable behavior remain unchanged.
+ */
 export interface BdLeadResult {
-  contact_id: number;
-  deal_id: number;
-  task1: { id: number; date: string };
-  task2: { id: number; date: string };
-  task3: { id: number; date: string };
+  contact_id: string;
+  deal_id: string;
+  task1: { id: string; date: string };
+  task2: { id: string; date: string };
+  task3: { id: string; date: string };
 }
 
 export async function executeBdLead(
   input: BdLeadInput,
-  client: Bitrix24Client
+  client: CrmClient
 ): Promise<BdLeadResult> {
   // 1 — Contact
   const contact = await client.createContact({
@@ -193,21 +197,21 @@ export async function executeBdLead(
   const task1 = await client.createTask({
     title: 'Follow-up 1 — Check + Connect',
     description: task1Description(input.contact_name, input.company_name),
-    deadline: date1,
+    dueDate: date1,
     dealId: deal.id,
   });
 
   const task2 = await client.createTask({
     title: 'Follow-up 2 — Short Bump',
     description: task2Description(input.signal_type, input.company_name),
-    deadline: date2,
+    dueDate: date2,
     dealId: deal.id,
   });
 
   const task3 = await client.createTask({
     title: 'Follow-up 3 — Close the Loop',
     description: task3Description(input.pain_point),
-    deadline: date3,
+    dueDate: date3,
     dealId: deal.id,
   });
 

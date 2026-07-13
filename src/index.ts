@@ -10,7 +10,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { Bitrix24Client } from './client.js';
+import { Bitrix24Client } from './crm/bitrix24.js';
 import { BD_LEAD_TOOL, BdLeadSchema, executeBdLead } from './tool.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────

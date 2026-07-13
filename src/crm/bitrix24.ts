@@ -1,40 +1,16 @@
 /**
- * Bitrix24 API client
+ * Bitrix24 API client implementing CrmClient
  * Uses Node.js 18+ native fetch — no axios, no node-fetch.
+ *
+ * This is the canonical adapter for Bitrix24.
+ * All field mappings, error handling, and call semantics are preserved exactly
+ * from the original src/client.ts to ensure 100% backward compatibility for
+ * the `bitrix24_create_bd_lead` tool behavior.
  */
 
-export interface ContactFields {
-  name: string;
-  role: string;
-  company: string;
-}
+import type { CrmClient, CrmContact, CrmDeal, CrmTask } from './types.js';
 
-export interface DealFields {
-  title: string;
-  contactId: number;
-  comments: string;
-}
-
-export interface TaskFields {
-  title: string;
-  description: string;
-  deadline: string; // YYYY-MM-DD
-  dealId: number;
-}
-
-export interface CreatedContact {
-  id: number;
-}
-
-export interface CreatedDeal {
-  id: number;
-}
-
-export interface CreatedTask {
-  id: number;
-}
-
-export class Bitrix24Client {
+export class Bitrix24Client implements CrmClient {
   private readonly baseUrl: string;
   private readonly userId: number;
 
@@ -89,51 +65,60 @@ export class Bitrix24Client {
 
   // ─── Contact ─────────────────────────────────────────────────────────────────
 
-  async createContact(fields: ContactFields): Promise<CreatedContact> {
-    const nameParts = fields.name.trim().split(/\s+/);
-    const firstName = nameParts[0] ?? fields.name;
+  async createContact(contact: CrmContact): Promise<{ id: string }> {
+    const nameParts = contact.name.trim().split(/\s+/);
+    const firstName = nameParts[0] ?? contact.name;
     const lastName = nameParts.slice(1).join(' ');
 
     const id = await this.call<number>('crm.contact.add', {
       fields: {
         NAME: firstName,
         LAST_NAME: lastName,
-        POST: fields.role,
-        COMPANY_TITLE: fields.company,
+        POST: contact.role,
+        COMPANY_TITLE: contact.company,
       },
     });
 
-    return { id };
+    return { id: String(id) };
   }
 
   // ─── Deal ─────────────────────────────────────────────────────────────────────
 
-  async createDeal(fields: DealFields): Promise<CreatedDeal> {
+  async createDeal(deal: CrmDeal): Promise<{ id: string }> {
     const id = await this.call<number>('crm.deal.add', {
       fields: {
-        TITLE: fields.title,
-        CONTACT_ID: fields.contactId,
-        COMMENTS: fields.comments,
+        TITLE: deal.title,
+        // Preserve exact numeric payload shape for CONTACT_ID when possible
+        CONTACT_ID: Number(deal.contactId),
+        COMMENTS: deal.comments,
       },
     });
 
-    return { id };
+    return { id: String(id) };
   }
 
   // ─── Task ─────────────────────────────────────────────────────────────────────
 
-  async createTask(fields: TaskFields): Promise<CreatedTask> {
+  // Accept YYYY-MM-DD or full ISO (per CrmClient contract); always return base date for Bitrix.
+  // This is defensive for future callers (web, Python backend, HubSpot adapter) while preserving
+  // exact current behavior for existing tool.ts (which passes YYYY-MM-DD).
+  private normalizeDate(d: string): string {
+    return d.includes('T') ? d.split('T')[0] : d;
+  }
+
+  async createTask(task: CrmTask): Promise<{ id: string }> {
     // Bitrix24 tasks.task.add returns { task: { id: "123", ... } }
+    // Preserve exact field mappings: DEADLINE format, UF_CRM_TASK prefix, RESPONSIBLE_ID
     const result = await this.call<{ task: { id: string } }>('tasks.task.add', {
       fields: {
-        TITLE: fields.title,
-        DESCRIPTION: fields.description,
-        DEADLINE: `${fields.deadline}T09:00:00+00:00`,
+        TITLE: task.title,
+        DESCRIPTION: task.description,
+        DEADLINE: `${this.normalizeDate(task.dueDate)}T09:00:00+00:00`,
         RESPONSIBLE_ID: this.userId,
-        UF_CRM_TASK: [`D_${fields.dealId}`],
+        UF_CRM_TASK: [`D_${task.dealId}`],
       },
     });
 
-    return { id: parseInt(result.task.id, 10) };
+    return { id: String(parseInt(result.task.id, 10)) };
   }
 }
