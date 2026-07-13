@@ -18,6 +18,8 @@ export const Composer: React.FC = () => {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<any>(null);
+  const [previewGenerated, setPreviewGenerated] = React.useState(false);
+  const [isGenerating, setIsGenerating] = React.useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -35,6 +37,15 @@ export const Composer: React.FC = () => {
     email_subject: `Intro to ${draft.company_name || 'Acme'}`,
     notes: draft.notes,
   });
+
+  const handleGenerate = () => {
+    setIsGenerating(true);
+    // simulate AI latency + skeleton (T013 will replace with real /enrich)
+    setTimeout(() => {
+      setPreviewGenerated(true);
+      setIsGenerating(false);
+    }, 300);
+  };
 
   const handlePush = async () => {
     if (!isLoggedIn) {
@@ -63,6 +74,8 @@ export const Composer: React.FC = () => {
     resetDraft();
     setResult(null);
     setError(null);
+    setPreviewGenerated(false);
+    setIsGenerating(false);
   };
 
   // Preview always reflects current draft (stub "Generate with AI" is instant client-side for skeleton)
@@ -113,8 +126,11 @@ export const Composer: React.FC = () => {
           </div>
 
           <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <button onClick={handlePush} disabled={loading || !draft.company_name}>
-              {loading ? 'Pushing to CRM...' : 'Push to CRM (stub)'}
+            <button onClick={handleGenerate} disabled={isGenerating}>
+              {isGenerating ? 'Generating...' : 'Generate with AI (stub)'}
+            </button>
+            <button onClick={handlePush} disabled={loading || !previewGenerated || !draft.company_name}>
+              {loading ? 'Pushing...' : 'Push to CRM'}
             </button>
             <button type="button" className="secondary" onClick={handleReset}>Reset</button>
           </div>
@@ -134,7 +150,12 @@ export const Composer: React.FC = () => {
 
         {/* Preview pane (right) */}
         <div className="card preview">
-          <Preview data={previewData} />
+          {isGenerating ? (
+            <div className="skeleton">Contacting LLM… (stub)</div>
+          ) : (
+            <Preview data={previewData} />
+          )}
+          {previewGenerated && <div className="stub-note" style={{ marginTop: 8, fontSize: 12 }}>Preview "generated" (stub). Real /enrich + memory injection in T013.</div>}
         </div>
       </div>
     </div>

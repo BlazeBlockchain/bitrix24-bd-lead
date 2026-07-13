@@ -27,6 +27,7 @@ function Header() {
         <NavLink to="/new" className={({ isActive }) => isActive ? 'active' : ''}>New Lead</NavLink>
         <NavLink to="/history" className={({ isActive }) => isActive ? 'active' : ''}>History</NavLink>
         <NavLink to="/connections" className={({ isActive }) => isActive ? 'active' : ''}>Connections</NavLink>
+        <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>Account</NavLink>
       </nav>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
