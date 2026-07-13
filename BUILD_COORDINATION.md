@@ -470,3 +470,5 @@ T002 COMPLETE. CrmClient now has Bitrix + HubSpot. Ready for T003 (full wiring),
 - Tester (019f5d90-ff12-7353-8931-c7798ab03a70) all green (mocks, syntax, compose, contracts consistent, TS pristine). No TEST_REPORT needed. Appended log + prepared commit note.
 - Key patch applied (database.py async generator). Re-verified.
 - Open clarifs carried: HubSpot token injection (T006), Python contract loc, sandbox for T020, redis timing.
+
+**2026-07-14 [Coordinator]** Backend skeleton committed (438f003). Agent loop (impl + reviewer PASS with fixes applied + tester green) closed. TS foundation untouched. Next: T003 (selector + MCP wire) + web app skeleton in parallel per plan.
