@@ -1165,3 +1165,23 @@ Timestamp: 2026-07-14. All mandatory reads, monitoring of Implementer+Reviewer, 
 - Marked [x] in tasks.md.
 - REVIEW_FOR_T006.md from reviewer has ready patches.
 - T007 LLM rev and test spawned, all agents told to update tasks.md and .md files.
+
+**2026-07-14 [Coordinator]** User request: "spawn all possible tasks". From tasks.md, spawning full agent trios (Implementer worktree, Reviewer, Tester/Committer) for all pending:
+- T009: Postgres models + migrations (User, Lead, CrmConnection, MemoryProfile, OutreachHistory per data-model)
+- T010: Basic REST API for enrich + push + history
+- T012: Connections page + flows (paste webhook + test, HubSpot OAuth)
+- T013: Lead Composer page (form, Generate AI, preview, Push)
+- T014: History page (list, detail, use similar)
+- T015: Basic Dashboard + usage display
+- T016: MV3 extension scaffold (manifest, popup, service worker)
+- T017: Thin client extension (enrich/push using stored JWT/token, host detection)
+- T018: Options page extension (linking to web dashboard)
+- T020: E2E smoke tests against Bitrix24 and HubSpot sandboxes
+- T022: Update root README with new flows + link to specs
+- T023: Security note (token handling, LLM keys, budgets) + basic logging
+- Polish: Memory profile editor / visible tone samples
+- Polish: Usage ledger + simple admin views
+- Polish: Full test coverage for adapters and orchestration
+- Polish: Extension store submission assets (screenshots, description)
+
+**ALL AGENTS (for all tasks):** Re-read BUILD_COORDINATION.md + specs/004-ai-bd-assistant/{plan.md,tasks.md,spec.md,data-model.md,contracts/*} + docs/{ARCHITECTURE.md,UI_UX.md,FEATURES.md} FIRST. Then UPDATE tasks.md, BUILD_COORDINATION.md (append your section with what you built/reviewed/tested, files, decisions, verifs, open items for others), REVIEW_FOR_xxx.md (for reviewers), and other relevant .md files. Share info explicitly to keep all informed and avoid breaking changes. Use worktree for Implementers. Verify builds/tests. Keep CrmClient, auth, vault, LLM, orchestration, web skeleton, etc. intact. No breaking changes.
