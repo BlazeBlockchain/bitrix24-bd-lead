@@ -9,12 +9,13 @@ Mirrors vanguard-game/backend/app/main.py patterns:
 
 Provides:
 - GET /api/health
-- POST /api/leads/push  (auth protected; delegates to T008 lead_service for exact CrmClient flow)
+- POST /api/leads/enrich (T007: LLM preview, protected, memory-injected, no CRM token)
+- POST /api/leads/push  (auth protected; delegates to T008 lead_service for exact CrmClient flow + T007 enrichment)
 
 T005: basic auth/JWT stub + protected dep.
+T007: LLM proxy integrated (Gemini primary + Haiku; enrich before Crm).
 T008: orchestration extracted to services/lead_service.py (create_lead_with_followups).
-T006: CRM token via vault.resolve using current_user + provider (envelope decrypt from CrmConnection stub);
-      ?token= remains as override for demo. create_crm_client receives resolved plaintext token.
+CRM tokens via ?token or settings (demo); create_crm_client called from service.
 """
 
 import base64
@@ -30,7 +31,8 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.database import init_db, close_db, get_db
 from app.services.lead_service import create_lead_with_followups
-from app.services.token_vault import resolve_token  # T006: per-user CRM token vault resolve (envelope)
+from app.services.llm_service import generate_enrichment  # T007
+from app.services.token_vault import resolve_token  # T006 vault + T007 flow compat
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +56,8 @@ async def get_current_user(
     Accepts Authorization: Bearer <token-or-jwt>.
     Falls back to settings-based demo user when DEBUG (keeps existing ?provider&token web calls working until web adds JWT header).
     Placeholder JWT: stdlib base64 decode attempt (python-jose + real verify + /auth/login later).
-
-    T006 note: current_user["id"] is used by token_vault.resolve_token() + CrmConnection lookup for per-user CRM tokens.
-    User auth (JWT) is separate from CRM token vault.
     """
+    token = credentials.credentials if credentials else None
 
     if not token:
         if settings.DEBUG:
@@ -158,10 +158,11 @@ async def health_check():
     return {"status": "ok", "version": settings.APP_VERSION, "provider_default": settings.DEFAULT_CRM_PROVIDER}
 
 
-# ─── Stub lead input (subset of BdLeadSchema from src/tool.ts; orchestration in T008; full models T009) ────
+# ─── Lead input (subset of BdLeadSchema from src/tool.ts; orchestration T008 + LLM T007) ────
 
 class LeadPushInput(BaseModel):
-    """Minimal lead input for stub /push. Matches core fields from contracts + tool.ts.
+    """Minimal lead input for /push and /enrich. Matches core fields from contracts + tool.ts.
+    T007: also used for generate_enrichment (preview).
     Passed to create_lead_with_followups (T008 service).
     """
     company_name: str = Field(..., min_length=1)
@@ -185,34 +186,29 @@ class LeadPushInput(BaseModel):
 async def push_lead(
     lead: LeadPushInput,
     provider: str = Query(default=settings.DEFAULT_CRM_PROVIDER, description="bitrix24 | hubspot"),
-    token: str | None = Query(default=None, description="CRM webhook or access token (separate from user JWT; use ?token= or env for demo). T006: override bypasses vault."),
+    token: str | None = Query(default=None, description="CRM webhook or access token (separate from user JWT; use ?token= or env for demo)"),
     current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
-    Stub endpoint: takes lead input and exercises full CrmClient flow via orchestration service.
+    Endpoint: takes lead input and exercises full CrmClient flow via orchestration service (T008).
 
     T005 auth: protected via get_current_user.
-    T006: CRM token resolved via vault using current_user + provider (CrmConnection lookup + envelope decrypt).
-          ?token= acts as override (for demo continuity / before stored connections in T009+).
+    current_user available (will drive per-user CRM token lookup in T006+).
 
-    Delegates to create_lead_with_followups (T008) which does:
-      createContact -> createDeal(with contactId) -> 3x createTask(due +4/9/14, dealId)
-    using create_crm_client(provider, resolved_token, current_user=...) exactly.
+    Delegates to create_lead_with_followups (T008 + T007) which does:
+      generate_enrichment (LLM memory-injected) -> createContact -> createDeal(with contactId) -> 3x createTask(due +4/9/14, dealId)
+    using create_crm_client(provider, token) exactly. Crm flow intact.
 
-    Token injection (clarification addressed): user JWT != CRM token.
-    Vault (token_vault.resolve_token) does the (current_user, provider) -> CrmConnection -> decrypt lookup.
-    Plaintext token only ever passed server-side into CrmClient adapters.
-    Keeps CrmClient abstraction intact.
+    CRM token resolution: ?token or settings (T006 vault later).
+    LLM enrichment now populates dynamic text.
 
-    Stub notes/LLM comments retained for later enrichment (T007/T009).
-
-    Returns ids shape (like executeBdLead + extras).
+    Returns ids shape (like executeBdLead) + enriched_preview (T007).
     """
     logger.debug(f"push_lead invoked by current_user={current_user.get('email')} provider={provider}")
 
     # T006: resolve token from vault (keyed on current_user + provider). ?token= is override.
     # Vault handles DEBUG fallback to settings + future real CrmConnection decrypt.
-    # This replaces the prior inline settings lookup. (resolve is sync in T006 stub)
+    # This keeps T006 behavior after T007 sync.
     try:
         effective_token = resolve_token(current_user, provider, override=token)
     except Exception as e:
@@ -225,9 +221,8 @@ async def push_lead(
         )
 
     try:
-        # Delegate exact orchestration to T008 service (contact->deal->3x task with +4/9/14 dates).
-        # Keeps CrmClient usage exact inside service (factory may also use vault if needed).
-        # effective_token is plaintext (decrypted by vault).
+        # Delegate exact orchestration to T008 service (T007 LLM first, then contact->deal->3x task +4/9/14).
+        # Keeps CrmClient usage exact inside service. effective_token is plaintext.
         core_result = await create_lead_with_followups(lead, provider, effective_token, current_user)
     except Exception as e:
         logger.exception("CrmClient call failed in stub push (via lead_service)")
@@ -239,8 +234,37 @@ async def push_lead(
         **core_result,
         "provider": provider,
         "authenticated_as": current_user.get("email") or current_user.get("id"),
-        "note": "STUB route (T008+T006): protected by get_current_user; token resolved via vault (current_user + CrmConnection); delegates to create_lead_with_followups (exact flow). Full orchestration + LLM enrich + real models/DB in T009+. CrmClient exercised via service.",
+        "note": "T008+T007: protected; delegates to create_lead_with_followups (LLM enrich + exact CrmClient flow for both providers). enriched_preview included.",
     }
+
+
+# ─── T007: /enrich endpoint (LLM proxy for preview; protected but no CRM token needed) ──
+
+@app.post("/api/leads/enrich")
+async def enrich_lead(
+    lead: LeadPushInput,
+    current_user: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    T007 LLM enrichment for preview (Composer "Generate with AI").
+
+    Calls generate_enrichment (Gemini primary + Haiku fallback; memory context injected via current_user).
+    Structured output: snapshot + opener + 3 follow-ups + rationale.
+    No CrmClient / token involved. Budget + logging applied inside service.
+
+    Prepares web T013; safe additive (no impact to /push or CrmClient).
+    """
+    logger.debug(f"enrich_lead invoked by current_user={current_user.get('email')}")
+    try:
+        result = await generate_enrichment(lead.model_dump(), current_user=current_user)
+        return {
+            **result,
+            "authenticated_as": current_user.get("email") or current_user.get("id"),
+            "provider_default": settings.DEFAULT_CRM_PROVIDER,
+        }
+    except Exception as e:
+        logger.exception("LLM enrichment failed")
+        raise HTTPException(status_code=502, detail=f"LLM enrichment failed: {str(e)}")
 
 
 # Router placeholders (mirrors vanguard; expand in T005+)
