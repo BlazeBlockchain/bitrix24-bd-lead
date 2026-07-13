@@ -1022,3 +1022,9 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
   **Blockers**: None (all listed verify items green on delivered code). Reviewer output not yet in files (monitor ongoing). Sandbox for T020, connect endpoints + full wiring next. Re-read coord+specs before future.
   Timestamp: 2026-07-14. All mandatory steps + verifs complete. T006 vault foundation GREEN.
 
+
+**2026-07-14 [Coordinator]** T007 LLM proxy: Reviewer (019f5daf-1a2c-7433-af2b-07cf7a5863a1) and Tester (019f5daf-2aa3-7733-a2b6-597e585c3d07) spawned.
+- All (incl previous T007 impl 019f5dad-8928...) instructed to: Re-read BUILD_COORDINATION.md + specs/plan/tasks.md etc FIRST. Then UPDATE tasks.md, BUILD_COORDINATION.md (append your work: progress, files, decisions, verifs, opens for others), REVIEW_FOR_T007.md, and other .md files. Share info explicitly.
+- Keep CrmClient/T008/auth intact.
+- Loop: impl (running), rev, test. Monitor outputs.
+- T006 reviewer (019f5daa-8dc4...) completed: AWAITING IMPL, patches ready in REVIEW_FOR_T006.md. Coord updated.
