@@ -776,3 +776,10 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - Changes synced from worktree; no impact on TS foundation, web, CrmClient contracts/adapters.
 - Open: real issuance/login, T006 vault for per-user CRM tokens from current_user, full /me etc.
 
+
+**2026-07-14 [Coordinator]** T005 full loop closed (impl + reviewer PASS + tester GREEN).
+- All verifs: syntax, protected calls (DEBUG/401/token), CrmClient both providers unchanged, TS/web no regression.
+- REVIEW_FOR_T005.md + coord appends.
+- Changes committed (94df498 + tester 54d3748).
+- Foundation: T001-3 + backend skeleton + auth stub + web skeleton solid.
+- Next: spawn T006 (CRM token vault/encryption) or T008 (orchestration service) or T012 (web connections real).
