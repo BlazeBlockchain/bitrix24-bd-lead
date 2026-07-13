@@ -900,3 +900,10 @@ Loop continues with shared coord to prevent breakage. Backend skeleton committed
 - Synced to main; py_compile OK here too.
 - Reviewer/tester still running (will fetch).
 - No TS/web impact.
+
+**2026-07-14 [Coordinator]** T008 full loop closed.
+- Impl (019f5da5-1b35-7db3-9dec-e76d62a11fe1): Created lead_service.py (create_lead_with_followups centralizing 1c+1d+3t via CrmClient, _add_days); main.py delegates (no dupe). Verifs: py_compile, mocks both providers (flow/dates/links/shape), TS clean.
+- Reviewer (019f5da5-27d4-7f41-bd59-f0525902b18c): PASS w/ minor (port rich task*Description from tool.ts; add services/__init__.py). Created REVIEW_FOR_T008.md.
+- Tester (019f5da5-330c-7c82-b274-cd666b2ac360): GREEN (syntax, mocks, delegation, no TS regression). Appended log + prepared commit note.
+- Synced + committed (3a78967 + tester ebdc589).
+- No TS/web impact. Prepares T007/T009.
