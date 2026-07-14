@@ -17,7 +17,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import config and Base after path setup
 from app.config import settings
-from app.database import Base  # re-exports models.base.Base after models imported in init
+from app.database import Base  # re-exports models.base.Base
+
+# T009: ensure ALL models registered with Base.metadata for autogenerate + correct migration support.
+# (prevents missing tables like leads, user_memory_profiles etc.)
+from app.models import (  # noqa: F401
+    user,
+    crm_connection,
+    lead,
+    user_memory_profile,
+    outreach_history,
+    usage_ledger,
+)
 
 # this is the Alembic Config object
 config = context.config
