@@ -43,3 +43,15 @@ coverage/
 # .vscode/ (project settings)
 # tessl.json
 
+# =========================
+# Skill IP (T029-T031)
+# =========================
+# Plaintext skill files are git-ignored (server-side IP, never committed)
+# Only the encrypted .enc files are committed
+BD-Lead-Research-SKILL-v06.md
+backend/app/skills/*.source.md
+backend/app/skills/bd_lead_research.source.md
+# Allow .enc files to be committed (they are encrypted, safe):
+!backend/app/skills/*.enc
+!backend/app/skills/bd_lead_research.md.enc
+

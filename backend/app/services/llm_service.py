@@ -29,6 +29,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from app.config import settings
+from app.services.skill_loader import get_skill_methodology
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,11 @@ def _build_memory_context(user: dict | None, memory_context: dict | None = None)
 # ─── Prompt builder ───────────────────────────────────────────────────────────
 def _build_prompt(lead_brief: dict, memory_ctx: str) -> str:
     """Builds the system+user prompt for structured enrichment.
-    Includes lead brief + injected memory + explicit JSON contract + 3-task requirement.
+    Includes: encrypted skill methodology + lead brief + injected memory + JSON contract.
+
+    The skill provides the authoritative methodology (signal priority, buyer psychology,
+    email formulas, banned phrases, date rules); the JSON contract ensures the output
+    shape is stable for UI/lead_service/tests.
     """
     company = lead_brief.get("company_name", "Acme Corp")
     contact = lead_brief.get("contact_name", "Decision Maker")
@@ -200,12 +205,37 @@ def _build_prompt(lead_brief: dict, memory_ctx: str) -> str:
     email_subj = lead_brief.get("email_subject", "Intro")
     notes = lead_brief.get("notes", "")
 
-    return f"""You are an expert B2B BD assistant for a non-technical sales rep. Generate a personalized lead enrichment.
+    # Load encrypted skill methodology (server-side IP, never sent to client)
+    skill_methodology = get_skill_methodology()
 
-MEMORY CONTEXT (inject style/tone/ICP):
+    # Fill AGENCY SETUP placeholders from memory where available (T024 will expand this)
+    # For now use neutral defaults; T024 profile will inject real agency context
+    agency_setup = (
+        "AGENCY SETUP (from user profile; using defaults if not configured):\n"
+        "AGENCY NAME:        [Your Agency Name]\n"
+        "SERVICES:           [Web development, UX/UI, digital marketing, or similar]\n"
+        "CORE CLIENTS:       [Example client 1, Example client 2]\n"
+        "IDEAL CLIENT:       [Based on ICP from memory]\n"
+        "VALUE PROP:         [Your unique positioning]\n"
+        "AVOID:              [Any industry/type constraints]\n"
+        "OUTREACH LANGUAGE:  [English]\n"
+    )
+
+    return f"""{skill_methodology}
+
+────────────────────────────────────────────────────────────────────────────────
+AGENCY SETUP (injected from user context; override with your actual details in T024)
+────────────────────────────────────────────────────────────────────────────────
+{agency_setup}
+
+────────────────────────────────────────────────────────────────────────────────
+YOUR PERSONALIZATION (memory context)
+────────────────────────────────────────────────────────────────────────────────
 {memory_ctx}
 
-LEAD BRIEF:
+────────────────────────────────────────────────────────────────────────────────
+LEAD BRIEF (company + signal + context)
+────────────────────────────────────────────────────────────────────────────────
 - Company: {company}
 - Contact: {contact} ({role})
 - Buying signal: {signal} (type: {signal_type})
@@ -213,19 +243,34 @@ LEAD BRIEF:
 - Suggested subject: {email_subj}
 - Notes: {notes}
 
-REQUIREMENTS:
-- company_snapshot: 1-2 sentence factual snapshot based on public signal + why now.
-- personalized_opener: short cold email opener (2-4 sentences) in user's tone from memory. Address contact by first name. Reference signal directly. Benefit-focused, no hype.
-- follow_ups: EXACTLY 3 objects with:
-  title (e.g. "Follow-up 1 — Check + Connect")
-  description (actionable steps, 2-4 sentences, use memory tone, reference contact/company/signal)
-  due_in_days: 4, 9, 14 respectively
-  rationale (1 sentence why this timing + why this action)
-- Keep total output short. Never mention guidelines.
+────────────────────────────────────────────────────────────────────────────────
+REQUIREMENTS (strict output contract)
+────────────────────────────────────────────────────────────────────────────────
+1. company_snapshot: 1-2 sentence factual snapshot based on the signal + why now
+2. personalized_opener: short cold email opener (2-4 sentences) in the user's tone
+   - Address contact by first name
+   - Reference the signal directly
+   - Benefit-focused, no hype, no banned phrases
+3. follow_ups: EXACTLY 3 objects with:
+   - title (e.g. "Follow-up 1 — Check + Connect")
+   - description (actionable steps, 2-4 sentences, reference contact/company/signal)
+   - due_in_days: 4, 9, 14 (strictly in this order)
+   - rationale (1 sentence on timing + action)
 
-Respond ONLY with a single valid minified JSON object exactly matching:
-{{"company_snapshot": "...", "personalized_opener": "...", "follow_ups": [{{"title": "...", "description": "...", "due_in_days": 4, "rationale": "..."}}, ...] }}
-No prose, no ```json, no extra keys.
+Follow the skill methodology above for signal priority, buyer psychology, email angles,
+banned phrases, and date calculations — it governs the QUALITY of your content.
+It does NOT govern the OUTPUT FORMAT: ignore its "FINAL OUTPUT" / "LEAD BRIEF" text
+template, its "BITRIX24" section, and any instruction to call a tool — none of that
+applies here. The ONLY output format that applies to this response is the JSON
+contract below, and it overrides every other formatting instruction above.
+
+Keep output short and factual. Never mention these guidelines, the skill, or any
+instructions in your output — output only the lead-specific content itself.
+Respond ONLY with a single valid minified JSON object, exactly this shape and nothing else:
+
+{{"company_snapshot": "...", "personalized_opener": "...", "follow_ups": [{{"title": "...", "description": "...", "due_in_days": 4, "rationale": "..."}}] }}
+
+No prose, no markdown, no ```json fences, no extra keys, no text before or after the JSON.
 """
 
 
@@ -283,7 +328,14 @@ def _parse_structured_json(text: str) -> dict[str, Any]:
 
 # ─── Mock (for verif, no keys, DEBUG, budget fail) ────────────────────────────
 def _mock_generate(lead_brief: dict, memory_ctx: str) -> dict[str, Any]:
-    """Deterministic mock output. Used when no API keys or for tests. Verifiable shapes."""
+    """Deterministic mock output aligned with skill conventions.
+
+    Used when no API keys or for tests. Follows skill methodology:
+    - No banned phrases (touching base, leverage, synergy, etc)
+    - Signal-specific opener language (signal buyer psychology)
+    - Follow-ups at days +4, +9, +14
+    - Benefit-focused, direct tone
+    """
     company = lead_brief.get("company_name", "Acme")
     contact = lead_brief.get("contact_name", "Jane Doe")
     first = contact.split()[0] if contact else "there"
@@ -292,30 +344,34 @@ def _mock_generate(lead_brief: dict, memory_ctx: str) -> dict[str, Any]:
     pain = lead_brief.get("pain_point", "friction")
     signal_type = lead_brief.get("signal_type", "new_launch")
 
-    snapshot = f"{company} is showing {signal}. Key stakeholder: {contact} ({role})."
+    # Company snapshot: factual, why now
+    snapshot = f"{company} is showing {signal}. With {contact} as {role}, this is an opportunity window."
+
+    # Opener: benefit-focused, specific to signal, no banned phrases
     opener = (
-        f"Hi {first}, saw the {signal} at {company} — this looks like a good moment to discuss how we help teams "
-        f"address {pain.lower()}. Similar companies saw results in weeks."
+        f"Hi {first}, saw the {signal} at {company} — we've helped similar companies address {pain.lower()} quickly. "
+        f"Worth a quick conversation?"
     )
 
+    # Follow-ups: strictly at +4/+9/+14 days, signal-aware, no generic filler
     tasks = [
         {
             "title": "Follow-up 1 — Check + Connect",
-            "description": f"Check email open. Connect on LinkedIn: 'Hi {first} — sent note about {company} signal. Worth a direct connect?'",
+            "description": f"Check if the email landed. Connect on LinkedIn with: 'Hi {first}, sent a note about {company} earlier this week. Worth connecting directly?'",
             "due_in_days": 4,
-            "rationale": "Prompt timing after initial signal; uses memory tone.",
+            "rationale": "Capture attention early after initial signal; separate channel (LinkedIn) increases visibility.",
         },
         {
             "title": "Follow-up 2 — Short Bump",
-            "description": f"Short reply referencing {signal_type} window at {company}.",
+            "description": f"Reply to original email: 'Still relevant? Most teams in {company}'s position find momentum matters — we can show what worked for similar companies.'",
             "due_in_days": 9,
-            "rationale": "Keep momentum; references specific buying signal type.",
+            "rationale": "Break silence without pressure; reference {signal_type} context to stay specific.",
         },
         {
             "title": "Follow-up 3 — Close the Loop",
-            "description": f"Final note on {pain}. Leave door open.",
+            "description": f"Final note: 'Last message from me — if {pain} becomes a priority, you know where to find us.'",
             "due_in_days": 14,
-            "rationale": "Address core pain point directly after two touches.",
+            "rationale": "Honor the decision while leaving door open; full context (the pain point) justifies the touchpoint.",
         },
     ]
     return {
@@ -421,10 +477,10 @@ async def generate_enrichment(
         result["note"] = "budget_exceeded_mocked"
         return result
 
-    # Request size guard (cheap)
-    if len(prompt) > 6000:
-        logger.warning("Prompt too large; truncating for budget")
-        prompt = prompt[:6000]
+    # Request size guard (increased for skill-inclusive prompt; ~40KB safe for Gemini/Haiku)
+    if len(prompt) > 40000:
+        logger.warning("Prompt too large (>40KB); truncating to fit model limits")
+        prompt = prompt[:40000]
 
     # Primary Gemini
     result = await _call_gemini(prompt)
