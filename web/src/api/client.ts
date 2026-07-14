@@ -246,3 +246,61 @@ export async function saveMemoryProfile(profile: MemoryProfileRequest): Promise<
   }
   return res.json();
 }
+
+// T025: Usage Ledger API (read-only; display cost + budget tracking)
+
+export interface UsageSummaryResponse {
+  total_calls: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_estimated_cost_cents: number;
+  today_cost_cents: number;
+  remaining_budget_cents: number;
+  daily_budget_cents: number;
+}
+
+export interface UsageHistoryItem {
+  id: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  estimated_cost_cents: number;
+  created_at: string;
+  lead_id?: string;
+}
+
+export interface UsageHistoryResponse {
+  items: UsageHistoryItem[];
+  total_count: number;
+  limit: number;
+}
+
+export async function getUsageSummary(): Promise<UsageSummaryResponse> {
+  const res = await fetch(`${API_BASE}/usage/summary`);
+  if (!res.ok) {
+    // Graceful for stub/demo without backend
+    return {
+      total_calls: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_estimated_cost_cents: 0,
+      today_cost_cents: 0,
+      remaining_budget_cents: 200, // default from backend config
+      daily_budget_cents: 200,
+    };
+  }
+  return res.json();
+}
+
+export async function getUsageHistory(limit = 50): Promise<UsageHistoryResponse> {
+  const res = await fetch(`${API_BASE}/usage/history?limit=${limit}`);
+  if (!res.ok) {
+    // Graceful for stub/demo without backend
+    return {
+      items: [],
+      total_count: 0,
+      limit,
+    };
+  }
+  return res.json();
+}

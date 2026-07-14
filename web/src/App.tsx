@@ -4,6 +4,7 @@ import { Composer } from './components/Composer';
 import { ConnectionsForm } from './components/ConnectionsForm';
 import { HistoryList } from './components/HistoryList';
 import { MemoryProfile } from './components/MemoryProfile';
+import { UsageView } from './components/UsageView';
 import './App.css';
 
 /**
@@ -28,6 +29,7 @@ function Header() {
         <NavLink to="/new" className={({ isActive }) => isActive ? 'active' : ''}>New Lead</NavLink>
         <NavLink to="/history" className={({ isActive }) => isActive ? 'active' : ''}>History</NavLink>
         <NavLink to="/connections" className={({ isActive }) => isActive ? 'active' : ''}>Connections</NavLink>
+        <NavLink to="/usage" className={({ isActive }) => isActive ? 'active' : ''}>Usage</NavLink>
         <NavLink to="/memory" className={({ isActive }) => isActive ? 'active' : ''}>Memory</NavLink>
         <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>Account</NavLink>
       </nav>
@@ -131,6 +133,23 @@ function ConnectionsPage() {
   );
 }
 
+function UsagePage() {
+  const { isLoggedIn, login } = useAppStore();
+  return (
+    <div className="page">
+      <h1>Usage & Budget</h1>
+      {!isLoggedIn ? (
+        <div className="card">
+          <p>Please sign in to view your usage and budget information.</p>
+          <button onClick={login}>Sign in (stub)</button>
+        </div>
+      ) : (
+        <UsageView />
+      )}
+    </div>
+  );
+}
+
 function AccountPage() {
   const { user, logout, isLoggedIn } = useAppStore();
   return (
@@ -150,7 +169,13 @@ function AccountPage() {
         <Link to="/memory"><button>Edit Memory Profile →</button></Link>
       </div>
 
-      <div className="stub-note">Usage dashboard and additional settings coming soon.</div>
+      <div className="card">
+        <h2>Usage & Budget</h2>
+        <p>View your API usage and daily budget consumption.</p>
+        <Link to="/usage"><button>View Usage →</button></Link>
+      </div>
+
+      <div className="stub-note">Additional settings coming soon.</div>
     </div>
   );
 }
@@ -164,6 +189,7 @@ function App() {
         <Route path="/new" element={<NewLeadPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/connections" element={<ConnectionsPage />} />
+        <Route path="/usage" element={<UsagePage />} />
         <Route path="/memory" element={<MemoryProfile />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="*" element={<div className="page"><p>Page not found. <Link to="/">Go home</Link></p></div>} />

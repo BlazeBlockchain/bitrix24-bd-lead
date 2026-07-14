@@ -98,17 +98,20 @@ async def _record_usage(
         try:
             # Import here to avoid circular dependency
             from app.models.usage_ledger import UsageLedger
+            from app.services.token_vault import derive_user_uuid
 
-            # Convert user id to UUID
-            user_id = None
-            if user and "id" in user:
-                id_str = user["id"]
-                try:
-                    user_id = uuid.UUID(id_str) if "-" in str(id_str) else uuid.UUID("00000000-0000-0000-0000-000000000001")
-                except Exception:
-                    user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
-            else:
-                user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+            # Convert user id to UUID using the SAME derivation as the read path
+            # (app/api/usage.py) and the T012/T024 patterns (connections.py,
+            # memory.py). Previously this used a bespoke uuid.UUID(id_str) parse
+            # that silently collapsed almost every stub user id (e.g.
+            # "stub-user-00000000-...", "stub-from-token") onto one hardcoded
+            # placeholder UUID whenever the raw string wasn't itself a valid
+            # UUID -- since derive_user_uuid() instead falls back to a
+            # deterministic uuid5() hash of the id string, the write path and
+            # read path disagreed and GET /api/usage/summary would show zero
+            # usage even though rows existed.
+            raw_user_id = (user or {}).get("id") if user else None
+            user_id = derive_user_uuid(raw_user_id or "00000000-0000-0000-0000-000000000001")
 
             # Parse lead_id if provided
             lead_uuid = None
