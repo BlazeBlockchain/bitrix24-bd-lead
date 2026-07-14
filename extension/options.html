@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BD Lead AI - Settings</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-2: #1c2330;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #f97316;
+      --accent-2: #38bdf8;
+      --accent-3: #4ade80;
+      --danger: #f87171;
+      --radius: 8px;
+      --font-sans: system-ui, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font: 14px/1.6 var(--font-sans);
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .options-container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 24px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .section h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      color: var(--accent);
+    }
+
+    .section p {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .section p:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+
+    input, select {
+      font: inherit;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      width: 100%;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    button {
+      font: inherit;
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button.secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .status-msg {
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    .status-msg.success {
+      background: rgba(74, 222, 128, 0.1);
+      color: var(--accent-3);
+      border: 1px solid var(--accent-3);
+    }
+
+    .status-msg.error {
+      background: rgba(248, 113, 113, 0.1);
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+
+    .auth-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      background: var(--surface-2);
+      border-radius: var(--radius);
+      font-size: 13px;
+    }
+
+    .auth-status.authenticated {
+      color: var(--accent-3);
+    }
+
+    .auth-status.unauthenticated {
+      color: var(--danger);
+    }
+
+    .token-display {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px;
+      margin: 8px 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      word-break: break-all;
+      max-height: 60px;
+      overflow: hidden;
+    }
+
+    .link-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      background: rgba(249, 115, 22, 0.1);
+      border: 1px solid var(--accent);
+    }
+
+    .link-button:hover {
+      background: rgba(249, 115, 22, 0.2);
+    }
+
+    .footer {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="options-container">
+    <header>
+      <h1>BD Lead AI Settings</h1>
+      <p class="subtitle">Manage your connection and preferences</p>
+    </header>
+
+    <!-- Authentication Section -->
+    <div class="section">
+      <h2>Authentication</h2>
+      <div id="authStatus" class="auth-status unauthenticated">
+        <span id="authText">Not authenticated</span>
+      </div>
+      <div id="tokenDisplay" class="token-display hidden"></div>
+      <button id="viewTokenBtn" class="secondary" style="margin-top: 8px;">View JWT Token</button>
+      <button id="signOutBtn" class="danger" style="margin-top: 8px;">Sign Out</button>
+      <div id="authMsg" class="status-msg hidden"></div>
+
+      <div class="form-group" style="margin-top: 16px;">
+        <label for="tokenInput">Paste JWT / demo token</label>
+        <input type="text" id="tokenInput" placeholder="Paste token from web dashboard (optional in dev mode)">
+      </div>
+      <button id="saveTokenBtn" class="secondary">Save Token</button>
+      <p style="margin-top: 8px;">
+        Note: the backend runs in DEBUG/demo mode by default and works without a token.
+        Real Google OAuth sign-in isn't wired up yet (T005); paste a token here once available.
+      </p>
+    </div>
+
+    <!-- CRM Settings -->
+    <div class="section">
+      <h2>CRM Settings</h2>
+      <div class="form-group">
+        <label for="defaultProvider">Default CRM Provider</label>
+        <select id="defaultProvider">
+          <option value="bitrix24">Bitrix24</option>
+          <option value="hubspot">HubSpot</option>
+        </select>
+      </div>
+      <div id="providerMsg" class="status-msg hidden"></div>
+      <p>Select your default CRM. You can change it anytime in the popup.</p>
+    </div>
+
+    <!-- Connections -->
+    <div class="section">
+      <h2>Manage Connections</h2>
+      <p>To add or update your CRM connections, visit the web dashboard:</p>
+      <button id="openConnectionsBtn" class="link-button">
+        🔗 Go to Connections Page
+      </button>
+      <p style="margin-top: 12px; font-size: 12px; color: var(--muted);">
+        There you can paste your Bitrix24 webhook URL or authorize HubSpot via OAuth.
+      </p>
+    </div>
+
+    <!-- Web App Links -->
+    <div class="section">
+      <h2>Web App</h2>
+      <div class="button-group">
+        <button id="openDashboardBtn" class="link-button" style="width: 100%;">
+          📊 Dashboard
+        </button>
+        <button id="openHistoryBtn" class="link-button" style="width: 100%;">
+          📜 History
+        </button>
+      </div>
+    </div>
+
+    <!-- Advanced -->
+    <div class="section">
+      <h2>Advanced</h2>
+      <p>Clear all stored data and start fresh.</p>
+      <button id="clearDataBtn" class="danger">Clear All Data</button>
+      <div id="clearMsg" class="status-msg hidden"></div>
+    </div>
+
+    <footer class="footer">
+      BD Lead AI v0.1.0
+      <br>
+      <span id="apiBaseDisplay" style="font-size: 11px; color: var(--muted);">API: localhost:8000</span>
+    </footer>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "BD Lead AI",
+  "version": "0.1.0",
+  "description": "Paste a signal. Get AI-enriched preview + 3 perfect follow-up tasks. Push to Bitrix24 or HubSpot in seconds.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://api.bdlead.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "BD Lead AI"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect fill='%23f97316' width='16' height='16' rx='2'/><text x='8' y='12' font-size='10' font-weight='bold' fill='white' text-anchor='middle'>BD</text></svg>"
+  }
+}
