@@ -1,0 +1,13 @@
+# Keep the plaintext BD Lead Research skill OUT of the image — IP protection.
+# skill_loader.py only ever reads the encrypted .enc; the plaintext source must
+# never be baked into the server image. (.gitignore does not affect docker COPY;
+# this .dockerignore does.)
+app/skills/*.source.md
+app/skills/bd_lead_research.source.md
+
+# Build/test cruft that shouldn't ship in the runtime image.
+**/__pycache__/
+**/*.pyc
+.python-version
+tests/
+.pytest_cache/
