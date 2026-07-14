@@ -129,6 +129,7 @@ Indexes: heavy on (user_id, created_at). Foreign keys with cascade where safe.
 Migrations via Alembic (Python side) or equivalent.
 
 **T009 note (2026-07-14)**: REVIEW_FOR_T009.md created; models must match data-model.md (users + user_memory_profiles + leads + crm_connections + outreach_history + usage_ledger; vectors on profiles/history). Current backend/app/models only stubs + 001_initial (pgvector ext). See BUILD_COORDINATION + tasks.md. Preps T010 API + persist. (Reviewer pre-delivery).
+**Web + polish T012-15/T024-25 note (2026-07-14 Tester/Committer)**: T010 partial (/enrich /push present; /history + persist missing). Web T013 partial progress (Composer calls enrichLead + renders enriched in Preview per T007 shape); T012/14/15 remain local stubs (conn->composer->history->dash chain conceptual GREEN). T024/T025: T009 models (memory_profile + usage_ledger) + llm ctx/record ready; no editor or views yet. All builds (web/py) GREEN. Awaiting impl delivery from wts. "Web flows chain: T012 conn status feeds T013; T014 use-similar pre-fills T013; T015 pulls from T025 + T014. All use T010 API + T009 models." See TEST_REPORT_WEB_POLISH.md + BUILD_COORDINATION append. No breakage.
 
 ---
 
@@ -234,14 +235,38 @@ docker compose up -d db redis
 
 ---
 
+## BD Lead Research Engine
+
+The product's core intellectual property is a proprietary B2B research methodology — the **BD Lead Research Engine** — encapsulated as a deterministic algorithm for transforming company signals into CRM-ready lead briefs.
+
+**Architecture (T030):**
+- **Storage**: Encrypted artifact at `backend/app/skills/bd_lead_research.md.enc` (Fernet cipher, Pkey-derived from `settings.ENCRYPTION_KEK`).
+- **Loading**: `backend/app/services/skill_loader.py` decrypts on server startup, strips YAML frontmatter + MCP footer, caches plaintext in memory (one load per process).
+- **Injection**: Plaintext skill is injected into the LLM system prompt (via `llm_service._build_prompt`) as the authoritative methodology — shapes the AI's reasoning for enrichment.
+- **Client Isolation**: The skill is **never returned to clients**, never embedded in web/extension bundles, never in any API response. Server-only IP.
+- **Plaintext Source**: `backend/app/skills/bd_lead_research.source.md` (git-ignored; never committed). Only the `.enc` artifact is in version control.
+- **Decryption Fallback**: If decryption fails (bad key, missing file), `skill_loader` returns a minimal fallback instruction (preserves uptime; LLM output is less optimal but system remains operational).
+
+**Versioning & Encryption (T031-T032):**
+- When bumping the app version via `make bump-patch|minor|major`, CHANGELOG is updated.
+- Before release, if the skill source changed: run `make encrypt-skill` (calls `scripts/encrypt_skill.py`) to re-encrypt the source with the current `ENCRYPTION_KEK` from `.env`.
+- The updated `.enc` is committed as part of the release artifact; plaintext never leaves dev.
+
+See root [SECURITY.md](../SECURITY.md) for key rotation and production guidance.
+
+---
+
 ## Security & Compliance Highlights
 
 - Encrypted CRM token storage (envelope).
+- **Encrypted server-side skill IP** (Fernet, never client-side).
 - JWT for session; short expiry + refresh.
 - LLM calls server-side only (keys never leave backend).
 - Data retention policy documented (user can request purge of history).
 - GDPR-aligned (EU target users).
 - One-page security note in docs before external launch.
+
+See root [SECURITY.md](../SECURITY.md) (T023, T030) + detailed refs to `backend/app/services/token_vault.py` (T006 fernet+KEK), `backend/app/services/skill_loader.py` (T030 skill loading/decryption), `llm_service.py` budgets/ledger (T007/T009), `config.py`, protected `main.py`. Basic threat model for early users included. (Accurate to impl as of T030.)
 
 ---
 

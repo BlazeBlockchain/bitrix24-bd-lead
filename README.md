@@ -21,7 +21,69 @@ Supported CRMs: **Bitrix24** (webhook) and **HubSpot** (OAuth). Auth: **Google O
 - Architecture & data model: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) + [specs/004-ai-bd-assistant/data-model.md](./specs/004-ai-bd-assistant/data-model.md)
 - Extension store assets (description, screenshot instructions, icon notes): [docs/extension-store.md](./docs/extension-store.md) — prepared for Chrome Web Store / Firefox submission (T027)
 
-**Current status**: All P1 user stories are implemented end-to-end and verified running via `docker compose up -d --build` + `npm run dev` — Connections (real backend-stored, encrypted CRM credentials), Composer (real `/enrich` + `/push`), History, Usage tracking, Memory profile editor, Dashboard, and the browser extension are all real, working code (no stubs). See [tasks.md](./specs/004-ai-bd-assistant/tasks.md) and [BUILD_COORDINATION.md](./BUILD_COORDINATION.md) for the full implementation log.
+**Current status**: All P1 user stories are implemented end-to-end and verified running via `docker compose up -d --build` + `npm run dev` — Connections (real backend-stored, encrypted CRM credentials), Composer (real `/enrich` + `/push`), History, Usage tracking, Memory profile editor, Dashboard, and the browser extension are all real, working code (no stubs). See [tasks.md](./specs/004-ai-bd-assistant/tasks.md) and [BUILD_COORDINATION.md](./docs/BUILD_COORDINATION.md) for the full implementation log.
+
+---
+
+---
+
+## BD Lead Research Engine
+
+At the heart of the product is a proprietary, battle-tested B2B research methodology — our **BD Lead Research Engine**. This is the intellectual property that transforms a company mention into a complete, CRM-ready lead brief.
+
+**What it does:**
+- Analyzes buying signals to find the right decision maker
+- Generates personalized cold email openers calibrated to the signal and company
+- Outlines exactly 3 follow-up actions (+4, +9, +14 days) with timing and rationale
+
+**Security & Privacy:**
+The skill methodology is **encrypted at rest** (Fernet, server-side KEK) and stored in the backend binary (`backend/app/skills/bd_lead_research.md.enc`). It is **never exposed** to clients, the browser extension, or any external API — it is decrypted only on the server and injected into the LLM's prompt as the authoritative methodology. The plaintext source is git-ignored in all deployments.
+
+This is a critical selling point: your research engine stays proprietary, verifiable, and under your complete control.
+
+---
+
+## Versioning & Releases
+
+The product uses **Semantic Versioning** (SemVer) with a single source of truth: the `VERSION` file at the repository root.
+
+**Workflow:**
+
+1. **Check current version:**
+   ```bash
+   make version
+   ```
+
+2. **Bump version (choose one):**
+   ```bash
+   make bump-patch  # 0.1.0 → 0.1.1
+   make bump-minor  # 0.1.0 → 0.2.0
+   make bump-major  # 0.1.0 → 1.0.0
+   ```
+   This updates `VERSION`, syncs all components (`package.json`, `web/package.json`, `extension/manifest.json`, `backend/app/config.py`), and stages `CHANGELOG.md` for editing.
+
+3. **Edit CHANGELOG:**
+   Update `CHANGELOG.md` with the new version section (format: [Keep a Changelog](https://keepachangelog.com/)).
+
+4. **Release (commit + tag):**
+   ```bash
+   make release
+   ```
+   Creates a commit + git tag `vX.Y.Z`. Then push:
+   ```bash
+   git push --tags && git push origin main
+   ```
+
+5. **For production, regenerate encrypted skill:**
+   ```bash
+   make encrypt-skill
+   ```
+   This re-encrypts the plaintext skill source using the production `ENCRYPTION_KEK` (must be set in `.env` before running). The updated `.enc` is committed as part of the release artifact.
+
+**Version visibility:**
+- The app displays the current version in the footer (via `/api/health` → `app_version`).
+- A dedicated `/changelog` page in the web app renders the root `CHANGELOG.md` for users.
+- All components (web, extension, backend) are kept in lockstep; no mixed versions in production.
 
 ---
 
