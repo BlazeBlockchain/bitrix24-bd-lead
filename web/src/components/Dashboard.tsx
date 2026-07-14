@@ -235,6 +235,9 @@ export const Dashboard: React.FC = () => {
         <div className="card">
           <p>Welcome to BD Lead Assistant.</p>
           <p>Sign in (stub) in the header to get started.</p>
+          <p style={{ fontSize: 13, color: 'var(--accent)', fontStyle: 'italic', marginTop: 12 }}>
+            Powered by our proprietary BD Lead Research engine — a battle-tested B2B research methodology that turns a company name into a complete, CRM-ready lead brief.
+          </p>
         </div>
       )}
 
@@ -243,6 +246,9 @@ export const Dashboard: React.FC = () => {
           {/* Quick summary */}
           <div className="card">
             <p>Hello, {user?.name}. Here's your dashboard.</p>
+            <p style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500, marginTop: 8 }}>
+              BD Lead Research Engine
+            </p>
             <Link to="/new">
               <button>Create new lead</button>
             </Link>

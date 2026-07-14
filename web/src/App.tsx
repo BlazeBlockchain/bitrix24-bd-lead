@@ -6,7 +6,10 @@ import { ConnectionsForm } from './components/ConnectionsForm';
 import { HistoryList } from './components/HistoryList';
 import { MemoryProfile } from './components/MemoryProfile';
 import { UsageView } from './components/UsageView';
+import { Changelog } from './components/Changelog';
+import { checkHealth } from './api/client';
 import './App.css';
+import { useState, useEffect } from 'react';
 
 /**
  * Web app skeleton root (T011+).
@@ -33,6 +36,7 @@ function Header() {
         <NavLink to="/usage" className={({ isActive }) => isActive ? 'active' : ''}>Usage</NavLink>
         <NavLink to="/memory" className={({ isActive }) => isActive ? 'active' : ''}>Memory</NavLink>
         <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>Account</NavLink>
+        <NavLink to="/changelog" className={({ isActive }) => isActive ? 'active' : ''}>Changelog</NavLink>
       </nav>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -136,6 +140,22 @@ function AccountPage() {
 }
 
 function App() {
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const health = await checkHealth();
+        setVersion(health.version);
+      } catch (err) {
+        console.debug('Failed to fetch version:', err);
+        // Gracefully handle error, version stays null and we show nothing
+      }
+    };
+
+    fetchVersion();
+  }, []);
+
   return (
     <BrowserRouter>
       <Header />
@@ -147,10 +167,11 @@ function App() {
         <Route path="/usage" element={<UsagePage />} />
         <Route path="/memory" element={<MemoryProfile />} />
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<div className="page"><p>Page not found. <Link to="/">Go home</Link></p></div>} />
       </Routes>
       <footer style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-        BD Lead skeleton • backend http://localhost:8000 • no real auth • <a href="https://github.com" target="_blank" rel="noreferrer">docs</a>
+        BD Lead skeleton • backend http://localhost:8000 • no real auth • <a href="https://github.com" target="_blank" rel="noreferrer">docs</a> {version && ` • v${version}`}
       </footer>
     </BrowserRouter>
   );
