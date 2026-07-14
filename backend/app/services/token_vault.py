@@ -33,6 +33,27 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+def derive_user_uuid(user_id: Any) -> "uuid.UUID":
+    """Map a current_user['id'] to a stable UUID for CrmConnection.user_id lookups.
+
+    current_user['id'] is a real UUID once real auth (T005 full) is wired, but the
+    T005 stub can hand back non-UUID ids (e.g. "stub-user-00000000-...",
+    "stub-from-token", or arbitrary JWT `sub` claims). Those must NOT all collapse
+    onto one fixed placeholder UUID — that would let unrelated stub identities read
+    (and overwrite, via the connect endpoints' upsert) each other's stored CRM
+    credentials. Instead, deterministically derive a UUID per distinct id string via
+    uuid5, so the mapping is stable (same input -> same output, needed so store and
+    lookup agree) while still keeping distinct users' rows distinct.
+    """
+    import uuid as _uuid
+
+    s = str(user_id) if user_id is not None else ""
+    try:
+        return _uuid.UUID(s)
+    except (ValueError, AttributeError, TypeError):
+        return _uuid.uuid5(_uuid.NAMESPACE_OID, s or "anonymous-stub-user")
+
+
 def _get_fernet() -> Fernet:
     """Build Fernet from settings.ENCRYPTION_KEK.
 
@@ -147,6 +168,55 @@ def resolve_token(
         f"No CRM token stored for user_id={user_id} provider={prov} "
         "(T006 vault). Use connect flow or pass ?token= override in dev."
     )
+
+
+async def resolve_stored_token(
+    current_user: dict[str, Any],
+    provider: str,
+    db: Any,
+) -> str | None:
+    """Look up a real stored CrmConnection (T012 connect flow) and decrypt it.
+
+    Returns the plaintext token/webhook_url if a connection exists for this
+    user+provider, else None (caller should fall back to resolve_token's
+    override/DEBUG/raise behavior).
+
+    This closes the T006->T012 gap: connect endpoints (app/api/connections.py)
+    store via encrypt_credentials(); this reads back via decrypt_credentials()
+    using the SAME CrmConnection row (user_id, provider), so the format always
+    matches what was stored.
+    """
+    if db is None:
+        return None
+
+    from sqlalchemy import select
+    from app.models import CrmConnection
+
+    user_id = current_user.get("id") or current_user.get("user_id")
+    prov = (provider or settings.DEFAULT_CRM_PROVIDER).lower()
+    if not user_id:
+        return None
+
+    # Same derivation as app/api/connections.py uses on store, so lookup agrees
+    # with whatever row the connect endpoints created/updated for this user.
+    uid = derive_user_uuid(user_id)
+
+    try:
+        stmt = select(CrmConnection).where(
+            CrmConnection.user_id == uid,
+            CrmConnection.provider == prov,
+        )
+        result = await db.execute(stmt)
+        conn = result.scalar_one_or_none()
+        if conn and conn.encrypted_credentials:
+            token = decrypt_credentials(conn.encrypted_credentials)
+            if token:
+                logger.debug(f"token_vault: resolved stored CrmConnection for user={user_id} provider={prov}")
+                return token
+    except Exception as e:
+        logger.debug(f"token_vault: resolve_stored_token lookup failed (falling back): {e}")
+
+    return None
 
 
 # Convenience alias (some call sites may use this name)

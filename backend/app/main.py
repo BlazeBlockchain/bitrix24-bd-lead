@@ -26,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db, close_db
 from app.api.leads import router as leads_router
+from app.api.connections import router as connections_router
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,9 @@ async def health_check():
     return {"status": "ok", "version": settings.APP_VERSION, "provider_default": settings.DEFAULT_CRM_PROVIDER}
 
 
-# Include routers from app.api (T010: extracted modules)
+# Include routers from app.api (T010: extracted modules, T012: connections)
 app.include_router(leads_router)
+app.include_router(connections_router)
 
 if __name__ == "__main__":
     import uvicorn

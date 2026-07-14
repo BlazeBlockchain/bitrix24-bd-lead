@@ -41,7 +41,10 @@ class Settings(BaseSettings):
     # Budget (T007): simple per-user daily cap in cents (NFR <$0.01/lead target)
     LLM_DAILY_BUDGET_CENTS: int = 200  # ~$2/day per user hard guard (stub; real in T009+)
 
-    # Future: ENCRYPTION_KEK etc. (T006+)
+    # Encryption (T006/T012): master KEK for envelope-encrypting stored CRM credentials
+    # (see app/services/token_vault.py). Empty in dev falls back to a hardcoded dev-only
+    # key there; MUST be set to a real secret (32+ bytes) in any shared/prod environment.
+    ENCRYPTION_KEK: str = ""
 
     class Config:
         env_file = ".env"

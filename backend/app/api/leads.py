@@ -28,7 +28,7 @@ from app.database import get_db
 from app.models import Lead, UsageLedger
 from app.services.lead_service import create_lead_with_followups
 from app.services.llm_service import generate_enrichment
-from app.services.token_vault import resolve_token
+from app.services.token_vault import resolve_token, resolve_stored_token
 
 logger = logging.getLogger(__name__)
 
@@ -225,10 +225,12 @@ async def push_lead(
     """
     logger.debug(f"push_lead invoked by current_user={current_user.get('email')} provider={provider}")
 
-    # T006: resolve token from vault (keyed on current_user + provider). ?token= is override.
-    # Vault handles DEBUG fallback to settings + future real CrmConnection decrypt.
+    # T006/T012: resolve token from vault (keyed on current_user + provider).
+    # Priority: ?token= query override > stored CrmConnection (from T012 connect flow,
+    # decrypted here) > DEBUG fallback to settings > error.
     try:
-        effective_token = resolve_token(current_user, provider, override=token)
+        stored_token = None if token else await resolve_stored_token(current_user, provider, db)
+        effective_token = resolve_token(current_user, provider, override=token or stored_token)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
