@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom';
 import { useAppStore } from './stores/appStore';
+import { Dashboard } from './components/Dashboard';
 import { Composer } from './components/Composer';
 import { ConnectionsForm } from './components/ConnectionsForm';
 import { HistoryList } from './components/HistoryList';
@@ -48,52 +49,6 @@ function Header() {
   );
 }
 
-function Dashboard() {
-  const { isLoggedIn, user, history, lastPushResult } = useAppStore();
-
-  return (
-    <div className="page">
-      <h1>Dashboard</h1>
-      {!isLoggedIn && (
-        <div className="card">
-          <p>Welcome to BD Lead Assistant (skeleton).</p>
-          <button onClick={() => (window as any).location = '#login-hint'}>Click "Sign in (stub)" in header to start demo.</button>
-        </div>
-      )}
-
-      {isLoggedIn && (
-        <>
-          <div className="card">
-            <p>Hello, {user?.name}. Quick stats (stub): {history.length} leads pushed this session.</p>
-            <p>Default provider: <strong>{useAppStore.getState().currentProvider}</strong>. Go to Connections to change.</p>
-            <Link to="/new"><button>Create new lead</button></Link>
-          </div>
-
-          {lastPushResult && (
-            <div className="card">
-              <h2>Last push result</h2>
-              <pre className="result">{JSON.stringify(lastPushResult, null, 2)}</pre>
-            </div>
-          )}
-
-          <div className="card">
-            <h2>Recent leads (T015 + T014)</h2>
-            {(history.length > 0 || useAppStore.getState().serverHistory.length > 0) ? (
-              (useAppStore.getState().serverHistory.length ? useAppStore.getState().serverHistory : history).slice(0, 3).map((h: any) => (
-                <div key={h.id || h.timestamp}>{(h.company_name || h.input?.company_name)} → {(h.crm_contact_id || h.result?.contact_id)}</div>
-              ))
-            ) : <p>No history yet. <Link to="/history">View full history</Link></p>}
-            <Link to="/history">See all history →</Link>
-          </div>
-        </>
-      )}
-
-      <div className="stub-note" style={{ marginTop: 24 }}>
-        This is the T011 web skeleton. Full auth (T005), enrich (T007/T013), real history API later. Backend /api/leads/push exercised on push.
-      </div>
-    </div>
-  );
-}
 
 function NewLeadPage() {
   const { isLoggedIn, login } = useAppStore();
