@@ -4,7 +4,7 @@
 # For full (later): add redis, web, etc per ARCHITECTURE.md
 services:
   bdlead-db:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-bdlead}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
@@ -41,6 +41,25 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  bdlead-web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        VITE_BASE: "/"
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    networks:
+      - bbspace_net
+    depends_on:
+      - bdlead-backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 10s
       timeout: 5s
       retries: 3

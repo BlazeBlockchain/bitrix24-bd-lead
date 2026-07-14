@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <!-- Background (dark theme) -->
+  <rect width="128" height="128" rx="24" fill="#0d1117"/>
+  <!-- CRM card shape -->
+  <rect x="20" y="28" width="88" height="72" rx="8" fill="#161b22" stroke="#30363d" stroke-width="4"/>
+  <!-- Sparkle / AI magic (orange accent) -->
+  <path d="M44 44 L48 56 L60 52 L48 60 L44 72 L40 60 L28 56 L40 52 Z" fill="#f97316"/>
+  <!-- Check / push arrow into CRM (green success) -->
+  <polyline points="72,68 80,76 96,56" stroke="#3fb950" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Small abstract CRM dots (Bitrix/HubSpot hint) -->
+  <circle cx="100" cy="40" r="6" fill="#58a6ff"/>
+  <circle cx="108" cy="48" r="4" fill="#f97316"/>
+  <!-- Tiny text hint for large view only (optional, hide in 16px) -->
+  <text x="64" y="108" font-family="sans-serif" font-size="10" fill="#c9d1d9" text-anchor="middle">BD AI</text>
+</svg>

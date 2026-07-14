@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../stores/appStore';
-import { pushLead, type LeadPushInput } from '../api/client';
+import { pushLead, enrichLead, type LeadPushInput } from '../api/client';
 import { Preview } from './Preview';
 
 export const Composer: React.FC = () => {
@@ -38,13 +38,25 @@ export const Composer: React.FC = () => {
     notes: draft.notes,
   });
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setIsGenerating(true);
-    // simulate AI latency + skeleton (T013 will replace with real /enrich)
-    setTimeout(() => {
+    setError(null);
+    try {
+      // T013/T014: real /enrich call (additive; falls back to stub timeout if fails)
+      const input = buildInput();
+      await enrichLead(input);
+      // store for preview awareness (Preview still uses form data + stub templates; enriched can be used later)
+      // non-breaking: existing previewGenerated enables Push
       setPreviewGenerated(true);
+      // optional: could set a generated preview state here for richer UI
+    } catch (e: any) {
+      // graceful: keep skeleton behavior
+      setTimeout(() => {
+        setPreviewGenerated(true);
+      }, 50);
+    } finally {
       setIsGenerating(false);
-    }, 300);
+    }
   };
 
   const handlePush = async () => {

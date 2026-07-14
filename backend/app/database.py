@@ -30,9 +30,20 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db():
-    """Initialize database tables (for dev; use Alembic in prod via entrypoint)."""
-    # Import models so metadata is populated
-    from app.models import user, crm_connection  # noqa: F401
+    """Initialize database tables (for dev; use Alembic in prod via entrypoint).
+
+    T009: imports all models (User, CrmConnection, Lead, UserMemoryProfile,
+    OutreachHistory, UsageLedger) so metadata includes full data-model schema.
+    """
+    # Import models so metadata is populated (T009 full)
+    from app.models import (  # noqa: F401
+        user,
+        crm_connection,
+        lead,
+        user_memory_profile,
+        outreach_history,
+        usage_ledger,
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

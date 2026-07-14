@@ -1,11 +1,13 @@
 /**
  * API client stub for BD Lead web app (T011 skeleton).
  * Uses native fetch (per project "use native fetch" guideline).
- * Targets backend at http://localhost:8000 (current state: /api/health + /api/leads/push stub).
+ * In dev: proxies to http://localhost:8000 via Vite dev server.
+ * In prod: nginx reverse proxies /api -> backend service.
  * Supports provider + token query params for demo (matches backend stub; real JWT later T005+).
  */
 
-const API_BASE = 'http://localhost:8000/api';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const API_BASE = base + '/api';
 
 export interface LeadPushInput {
   company_name: string;

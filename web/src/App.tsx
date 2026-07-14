@@ -171,7 +171,7 @@ function App() {
         <Route path="*" element={<div className="page"><p>Page not found. <Link to="/">Go home</Link></p></div>} />
       </Routes>
       <footer style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-        BD Lead skeleton • backend http://localhost:8000 • no real auth • <a href="https://github.com" target="_blank" rel="noreferrer">docs</a> {version && ` • v${version}`}
+        BD Lead • API proxied • no real auth • <a href="https://github.com" target="_blank" rel="noreferrer">docs</a> {version && ` • v${version}`}
       </footer>
     </BrowserRouter>
   );

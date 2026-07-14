@@ -52,10 +52,13 @@ interface AppState {
   lastPushResult: any | null;
   setLastResult: (r: any) => void;
 
-  // Local history stub (T014)
+  // History (T014): local for immediate post-push; server via getHistory in component. Shared shape for use-similar.
   history: PushHistoryItem[];
   addToHistory: (item: Omit<PushHistoryItem, 'id' | 'timestamp'>) => void;
   clearHistory: () => void;
+  // For server history items (from /api/leads/history) which have different shape (id, company_name etc + enriched)
+  serverHistory: any[];
+  setServerHistory: (items: any[]) => void;
 }
 
 const defaultDraft = {
@@ -99,4 +102,7 @@ export const useAppStore = create<AppState>((set) => ({
     set((s) => ({ history: [newItem, ...s.history].slice(0, 20) })); // keep recent
   },
   clearHistory: () => set({ history: [] }),
+
+  serverHistory: [],
+  setServerHistory: (items) => set({ serverHistory: items }),
 }));

@@ -5,7 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1] - 2026-07-14
+
+### Added
+- Dockerized frontend (multi-stage node→nginx, SPA + /api reverse proxy)
+- Staging compose override (isolated volume, container names, sub-path VITE_BASE)
+- Makefile deploy targets (dev/up/down/build-web/logs/stop/clean/deploy-staging/deploy-prod)
+- `.env.staging.example` documenting staging environment variables
+- specs/006-docker-frontend-deploy feature spec kit
+- Vite dev-server proxy for `/api` in development mode
+
+### Changed
+- `web/src/api/client.ts` derives base URL from `import.meta.env.BASE_URL` (same-origin)
+- Web footer no longer hardcodes backend URL
+- README.md: new Deployment section with full-stack/dev/deploy commands
+- docs/ARCHITECTURE.md: dockerized nginx frontend topology documented
+- `docker-compose.yml`: added bdlead-web service (nginx on port ${WEB_PORT:-8080}:80)
+- New DB models: lead, outreach_history, usage_ledger, user_memory_profile
+- Web components enhanced: Composer, HistoryList, Preview, store improvements
+
+### Fixed
+- Dockerfile build context corrected (was using root package.json instead of web/)
+- docker-compose.staging.yml: removed obsolete `version` attribute
+
 
 ## [0.1.0] - 2026-07-14
 
