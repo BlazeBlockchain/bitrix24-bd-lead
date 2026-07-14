@@ -9,13 +9,13 @@ Centralizes the exact lead creation flow previously inline in main.py /push
 - Uses create_crm_client(provider, token) EXACTLY (no direct adapter usage).
 - Simple date helpers here (moved from duplicated _add_days stub).
 - Returns core result dict: {contact_id, deal_id, task1/2/3: {id, date}}
-- Accepts LeadPushInput (Pydantic) or plain dict (stub; full models + validation in T009).
+- Accepts LeadPushInput (Pydantic) or plain dict (stub; full models + validation ready per T009).
 - T007: LLM enrichment (via llm_service.generate_enrichment) called BEFORE CrmClient ops to
   produce company_snapshot + personalized_opener + rich follow-up tasks+rationale.
   These replace stub text in deal comments + task descriptions (CrmClient call shapes + dates + linking 100% unchanged).
   Enriched data also returned for preview/history (non-breaking extra fields).
-- current_user drives memory context injection (T006 vault + profiles later).
-- Prepares for T009 (will accept/persist Lead + use current_user + real DB).
+- current_user drives memory context injection (T006 vault + profiles; T009 models ready for real query).
+- T009: models (Lead, UserMemoryProfile, etc) + migration ready for persist + queries (T010+).
 
 All CrmClient calls remain camelCase, pass dicts (supported by adapters), use string IDs.
 """
@@ -42,11 +42,19 @@ async def create_lead_with_followups(
     provider: str,
     token: str,
     current_user: dict[str, Any],
+    db: Any = None,  # AsyncSession | None; using Any to avoid import cycles (T010)
 ) -> dict[str, Any]:
     """Create contact + deal + 3 follow-up tasks via CrmClient.
 
     Exact flow and field construction as exercised by current /push stub.
     current_user passed for future (T009+) per-user context / auditing (not used in CRM calls here).
+
+    Args:
+        lead_input: Pydantic model or dict with lead info
+        provider: 'bitrix24' or 'hubspot'
+        token: plaintext CRM token/webhook
+        current_user: dict with user id/email for memory context
+        db: optional AsyncSession for usage ledger persistence (T010)
     """
     # Support Pydantic model (LeadPushInput) or dict (flexible for tests/mocks)
     if hasattr(lead_input, "model_dump"):
@@ -70,7 +78,8 @@ async def create_lead_with_followups(
     # T007: Call enrichment BEFORE any CrmClient (injects memory context from current_user).
     # Uses structured output; falls back to mocks if no keys. Rich data used for CRM text.
     # CrmClient flow, dates, linking, return ids shape remain EXACT and untouched.
-    enriched = await generate_enrichment(data, current_user=current_user)
+    # T010: Pass db for usage ledger persistence (non-fatal if not provided)
+    enriched = await generate_enrichment(data, current_user=current_user, db=db)
 
     # T006: pass current_user so factory can resolve via vault if needed (token here is plaintext resolved upstream or override).
     client = create_crm_client(provider, token, current_user=current_user)

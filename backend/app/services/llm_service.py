@@ -24,6 +24,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
@@ -57,8 +58,27 @@ def _check_budget(user: dict | None, estimated_cents: int = 2) -> bool:
     return True
 
 
-def _record_usage(user: dict | None, model: str, input_tokens: int, output_tokens: int, cost_cents: int) -> None:
-    """Log + update stub ledger. Mirrors usage_ledger table (id, user_id, lead_id, model, tokens, estimated_cost_cents)."""
+async def _record_usage(
+    user: dict | None,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cost_cents: int,
+    db: Any = None,  # AsyncSession | None; using Any to avoid import cycles
+    lead_id: str | None = None,
+) -> None:
+    """Log + update stub ledger + persist to DB (T010).
+
+    Mirrors usage_ledger table (id, user_id, lead_id, model, tokens, estimated_cost_cents).
+
+    Args:
+        user: current_user dict with id/email
+        model: model name (e.g. "gemini-2.5-flash")
+        input_tokens, output_tokens: token counts
+        cost_cents: estimated cost in cents
+        db: optional AsyncSession for DB persistence (T010)
+        lead_id: optional UUID string of associated lead (for future attribution)
+    """
     uid = _get_user_key(user)
     today = datetime.utcnow().strftime("%Y-%m-%d")
     if uid not in _user_daily_usage or _user_daily_usage[uid]["date"] != today:
@@ -66,13 +86,58 @@ def _record_usage(user: dict | None, model: str, input_tokens: int, output_token
     _user_daily_usage[uid]["cents"] += cost_cents
     _user_daily_usage[uid]["calls"] += 1
 
-    # Structured log for observability (real would INSERT into usage_ledger)
+    # Structured log for observability
     logger.info(
         "LLM_USAGE: user=%s model=%s in=%d out=%d cost_cents=%d daily_total=%d calls=%d",
         uid, model, input_tokens, output_tokens, cost_cents,
         _user_daily_usage[uid]["cents"], _user_daily_usage[uid]["calls"],
     )
-    # TODO(T009): await db insert into usage_ledger with lead_id when available
+
+    # T010: persist to DB if db session available (non-fatal if fails)
+    if db:
+        try:
+            # Import here to avoid circular dependency
+            from app.models.usage_ledger import UsageLedger
+
+            # Convert user id to UUID
+            user_id = None
+            if user and "id" in user:
+                id_str = user["id"]
+                try:
+                    user_id = uuid.UUID(id_str) if "-" in str(id_str) else uuid.UUID("00000000-0000-0000-0000-000000000001")
+                except Exception:
+                    user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+            else:
+                user_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+            # Parse lead_id if provided
+            lead_uuid = None
+            if lead_id:
+                try:
+                    lead_uuid = uuid.UUID(lead_id) if isinstance(lead_id, str) else lead_id
+                except Exception:
+                    pass
+
+            # Create ledger entry
+            ledger_entry = UsageLedger(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                lead_id=lead_uuid,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                estimated_cost_cents=cost_cents,
+                created_at=datetime.utcnow(),
+            )
+            db.add(ledger_entry)
+            await db.commit()
+            logger.debug(f"Persisted usage ledger entry for user {user_id} with model {model}")
+        except Exception as e:
+            logger.warning(f"Non-fatal: failed to persist usage ledger: {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
 
 # ─── Memory context injection (T006 vault + profiles stub) ─────────────────────
@@ -306,6 +371,7 @@ async def generate_enrichment(
     lead_brief: dict[str, Any],
     current_user: dict[str, Any] | None = None,
     memory_context: dict[str, Any] | None = None,
+    db: Any = None,  # AsyncSession | None; using Any to avoid import cycles (T010)
 ) -> dict[str, Any]:
     """Main entry: returns structured enrichment for preview or for enriching CRM create payloads.
 
@@ -315,6 +381,12 @@ async def generate_enrichment(
 
     Budget guard + usage ledger logging applied.
     Memory injected from T006 context (stubbed).
+
+    Args:
+        lead_brief: dict with lead info (company_name, contact_name, etc)
+        current_user: optional dict with user id/email for memory + budget + ledger
+        memory_context: optional dict for tone/icp/cadence override
+        db: optional AsyncSession for usage ledger persistence (T010)
     """
     if not lead_brief:
         lead_brief = {}
@@ -350,13 +422,14 @@ async def generate_enrichment(
         result = _mock_generate(lead_brief, mem)
         used_model = result["model_used"]
 
-    # Record usage (mocked tokens/cost for real calls too; real SDK usage in resp)
-    _record_usage(
+    # Record usage (mocked tokens/cost for real calls too; real SDK usage in resp) + persist to DB (T010)
+    await _record_usage(
         current_user,
         used_model or "unknown",
         input_tokens=400,  # rough
         output_tokens=250,
         cost_cents=1 if "mock" not in result else 0,
+        db=db,
     )
 
     # Always include memory note for transparency (UI shows "using your memory")
