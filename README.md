@@ -375,6 +375,75 @@ Companion:
 
 **Build status (2026-07-14)**: All tasks (T001-T027) complete and verified running end-to-end via Docker (backend + Postgres/pgvector) + the web dev server, including a genuine `docker compose up -d --build` migration/health smoke test. See [tasks.md](./specs/004-ai-bd-assistant/tasks.md) + [BUILD_COORDINATION.md](./BUILD_COORDINATION.md) for the full history.
 
+---
+
+## Deployment
+
+The full stack runs via Docker Compose with three services: `bdlead-db` (pgvector/pg16), `bdlead-backend` (FastAPI), and `bdlead-web` (nginx serving the SPA + reverse-proxying `/api` to the backend).
+
+### Prerequisites
+
+- Docker + Docker Compose v2
+- External Docker network `bbspace_net` (create with `docker network create bbspace_net` if missing)
+- `.env` file with secrets (copy `.env.example`)
+
+### Dev — Full Stack
+
+```bash
+make dev
+# or: docker compose -p bdlead-dev up --build -d
+
+# Verify:
+curl http://localhost:8080/              # SPA (served by nginx)
+curl http://localhost:8080/api/health    # Backend via nginx proxy
+curl http://localhost:8000/api/health    # Backend directly
+```
+
+The web container publishes on `${WEB_PORT:-8080}:80`. The nginx `location /api/` block proxies API calls to `bdlead-backend:8000` so all requests go to the same origin — no CORS needed.
+
+### Dev — Native (Vite dev server)
+
+```bash
+npm run dev     # from web/ — proxies /api to localhost:8000 via Vite dev server
+```
+
+### Quick Dev Commands
+
+```bash
+make dev        # Start full stack with --build
+make up         # Start full stack without rebuild
+make build-web  # Rebuild only the web container
+make logs       # Follow all service logs
+make down       # Stop all services
+make clean      # Stop + remove volumes
+```
+
+### Staging Deploy
+
+```bash
+make deploy-staging DEPLOY_USER=root DEPLOY_HOST=staging.example.com
+```
+
+This uses `docker-compose.staging.yml` override (isolated DB volume, prefixed container names, `.env.staging`, sub-path base URL).
+
+### Production Deploy
+
+```bash
+make deploy-prod DEPLOY_USER=root DEPLOY_HOST=prod.example.com
+```
+
+### Architecture: nginx `/api` Reverse Proxy
+
+```
+Browser ──→ bdlead-web:80 (nginx)
+                ├── /        → /usr/share/nginx/html (SPA)
+                └── /api/*   → proxy_pass http://bdlead-backend:8000/api/
+```
+
+This eliminates CORS issues entirely — the frontend always calls `/api/...` which works identically in dev (via Vite proxy) and production (via nginx proxy).
+
+---
+
 ## Tool reference (MCP engine — still supported)
 
 **Tool name:** `bitrix24_create_bd_lead`

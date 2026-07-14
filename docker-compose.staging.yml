@@ -1,0 +1,21 @@
+services:
+  bdlead-db:
+    container_name: bdlead-staging-db
+    volumes:
+      - bdlead_db_staging_data:/var/lib/postgresql/data
+    env_file:
+      - .env.staging
+
+  bdlead-backend:
+    container_name: bdlead-staging-be
+    env_file:
+      - .env.staging
+
+  bdlead-web:
+    container_name: bdlead-staging-web
+    build:
+      args:
+        VITE_BASE: /bd-lead-staging/
+
+volumes:
+  bdlead_db_staging_data:

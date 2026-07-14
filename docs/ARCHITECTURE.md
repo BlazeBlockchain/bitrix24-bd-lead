@@ -206,27 +206,58 @@ REST/JSON preferred (align to vanguard style).
 
 ## Deployment & Ops Config
 
-**Local dev (mirrors vanguard):**
-```bash
-docker compose up -d db redis
-# backend + web in dev mode or compose
+The full stack runs via Docker Compose with three services sharing the external `bbspace_net` network:
+
+| Service        | Image                            | Port(s)      | Role |
+|----------------|----------------------------------|--------------|------|
+| `bdlead-db`    | pgvector/pgvector:pg16           | —            | PostgreSQL 16 + pgvector |
+| `bdlead-backend` | Python 3.12-slim (FastAPI)    | 8000         | REST API, LLM proxy, orchestration |
+| `bdlead-web`   | node:20-alpine → nginx:alpine    | ${WEB_PORT:-8080}:80 | SPA + nginx reverse proxy for /api |
+
+### Architecture: nginx /api Reverse Proxy
+
+```
+Browser ──→ bdlead-web:${WEB_PORT:-8080} (nginx)
+                ├── /        → /usr/share/nginx/html (SPA — try_files /index.html)
+                ├── /assets/* → immutable cache (1y)
+                └── /api/*   → proxy_pass http://bdlead-backend:8000/api/
 ```
 
-**Production (single VPS):**
-- Ubuntu 22.04+.
-- `docker-compose.yml` with services: `db` (postgres:16), `redis`, `backend`, `web` (nginx + built assets).
-- External Docker network.
-- Reverse proxy (nginx on host or cloud) → web:80 (SPA + /api proxy to backend).
-- Volumes for db data.
-- Healthchecks + restart policies.
-- Entry point runs migrations before start.
-- `.env` (never committed): DATABASE_URL, GOOGLE_CLIENT_ID/SECRET, GEMINI_API_KEY, ANTHROPIC_API_KEY, JWT_SECRET, REDIS_URL, ENCRYPTION_KEK, etc.
+The frontend always calls same-origin `/api/...` — the `web/src/api/client.ts` derives its base URL from `import.meta.env.BASE_URL`. In dev, Vite's dev server proxies `/api` → `http://localhost:8000`. In production, nginx handles the same proxy pattern. This eliminates CORS entirely.
 
-**CI / Deploy:**
-- Build web (VITE_ or equiv base path if subpath).
-- Backend image includes Alembic + app.
-- SSH or Gitea runner: pull, compose up --build -d.
-- Separate staging compose/project if needed.
+### Docker Compose
+
+**Base compose** (`docker-compose.yml`): three services with healthchecks, restart policies, external network.
+
+**Staging override** (`docker-compose.staging.yml`): isolated DB volume (`bdlead_db_staging_data`), container name suffixes (`-staging`), separate `.env.staging`, sub-path `VITE_BASE: /bd-lead-staging/`.
+
+```bash
+# Dev (full stack)
+docker compose -p bdlead-dev up --build -d
+
+# Staging (with override)
+docker compose -f docker-compose.yml -f docker-compose.staging.yml -p bdlead-staging up --build -d
+```
+
+### Web Container (Multi-stage)
+
+1. **Stage 1 — Build**: `node:20-alpine`, `npm ci`, `npm run build` (honors `ARG VITE_BASE`).
+2. **Stage 2 — Serve**: `nginx:alpine`, copies `web/nginx.conf` and built `dist/`, `HEALTHCHECK curl -f http://localhost/`.
+
+### Deploy (SSH)
+
+```bash
+make deploy-staging DEPLOY_USER=root DEPLOY_HOST=staging.example.com
+make deploy-prod    DEPLOY_USER=root DEPLOY_HOST=prod.example.com
+```
+
+Both targets rsync the repo to the VPS, then run `docker compose up --build -d` with the appropriate compose files.
+
+### Required Secrets
+
+`.env` (never committed): `DATABASE_URL`, `GOOGLE_CLIENT_ID`/`SECRET`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `JWT_SECRET`, `ENCRYPTION_KEK`, `BITRIX24_WEBHOOK_URL`, `HUBSPOT_ACCESS_TOKEN`.
+
+Staging uses a separate `.env.staging` file (see `.env.staging.example`).
 
 **Cost & Scaling (day 1):**
 - Hard per-user daily LLM budget + request size cap.
