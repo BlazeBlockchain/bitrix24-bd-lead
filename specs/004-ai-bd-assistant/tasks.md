@@ -8,14 +8,15 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/004-ai-bd-assistant/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md (and the root docs/CONCEPT.md etc.)
 
-**Orchestrator reconciliation (2026-07-14)**: Fresh inspection of main workspace (backend/app/*, web/src/*, src/crm/*), alembic, docker-compose, README, SECURITY.md + prior BUILD_COORDINATION + REVIEW_*.md notes.
-- Confirmed core slices GREEN in main: CrmClient (TS+PY adapters+factory), T004-9 backend (llm_service, lead_service full 1c+1d+3t+enrich, token_vault resolve+encrypt, models+002_mig+get_db, auth stub, main /enrich+/push wired with current_user+resolve), T011+ T013 web (real API client calls + Preview render), T021/T022/T023 docs.
-- Web build clean. Models load structure correct (no breakage in main).
-- Partial: T010 (enrich/push + some history/persist from T014; still missing router extraction, full detail, ledger). Cross reviewer (019f5dba-dbe8...) confirmed shapes good but incomplete; see new REVIEW_FOR_T010.md.
-- Not in main: extension/ (T016-18 WT only).
-- Delivered: T014 (history + use similar server-backed + T010 progress), T020 (script synced + mock-verified; cross review in REVIEW_FOR_T020.md), T016/T017 tester verif, T012-15 T024-25 web/polish tester verif (builds GREEN, awaiting full impls).
-- Stubs remain for T012 (connections), T015 (dash), T024-26 polish. T018 (options page) and T027 (store assets) complete. T016/T017 extension in WT.
-- All future agents must re-read full BUILD_COORDINATION.md + this file + relevant specs before edits. Statuses below reconciled for fidelity. New cross REVIEWs for T010/T020 added.
+**Orchestrator reconciliation (2026-07-14, final pass)**: All backend + web + extension tasks are now real, committed, working code — not stubs. Final push completed the remaining backlog via implement→review→test/commit loops per task, each independently re-verified (py_compile/pytest/npm build) at every stage before merge:
+- **T010** — routes extracted to `backend/app/api/leads.py`, new ownership-checked `GET /api/leads/{lead_id}` detail endpoint, usage-ledger DB persistence wired into `llm_service._record_usage`. Commit `382eeff`.
+- **T026** — real pytest suite added (`backend/tests/`, 68 tests, adapters + factory + lead_service + llm_service), hermetic (no real DB/network/LLM). Commit `7072d98`.
+- **Extension (T016-18)** — rebuilt from scratch in `extension/`; prior "worktree" versions referenced in earlier notes below were never actually merged to main (confirmed via `git worktree list` / `git log --all -- extension/` returning nothing) — treat any "WT" note below as historical/superseded. Commit `6cf649b`.
+- **T012** — real `backend/app/api/connections.py` (store/test Bitrix24 webhook + HubSpot token, `GET /api/connections`) + `ConnectionsForm.tsx` wired to it. A review pass caught and fixed a real multi-tenant credential-collision bug (non-UUID user ids were colliding onto one shared row) plus a missing `ENCRYPTION_KEK` config field and a dead `resolve_token` DB-lookup path — all fixed before commit. Commit `2a53b94`.
+- **T024** — `backend/app/api/memory.py` (GET/PUT profile, upsert) + `MemoryProfile.tsx` editor, wired into the real `/enrich` flow. Review caught `_build_memory_context` silently dropping cadence/tone_samples fields — fixed so they reach the LLM prompt. Commit `e0ca6ea`.
+- **T025** — `backend/app/api/usage.py` (summary + history) + `UsageView.tsx`. Review caught the usage-ledger write path (`_record_usage`) and the new read path deriving `user_id` differently, which would have shown zero usage forever — fixed to use the same `derive_user_uuid()` on both sides. Commit `6f15a9a`.
+- **T015** — `Dashboard.tsx` now pulls real connection status (T012), usage/budget (T025), and history (T010/T014) instead of local-only stubs. Commit `d3f3324`.
+- Full remaining backlog from the previous reconciliation pass (T012, T015, T024, T025, T026, extension) is now closed. Historical per-task notes below (Orchestrator/Reviewer/Tester entries from earlier sessions, some referencing worktrees or subagent IDs) are kept for audit trail but superseded where they conflict with the final-pass summary above or the commit hashes cited.
 
 **Organization**: Tasks grouped to enable independent slices (aligns with P1 stories in spec.md and FEATURES.md).
 
@@ -75,9 +76,19 @@ description: "Task list template for feature implementation"
   - **Orchestrator (2026-07-14)**: Server-backed delivery complete via worktree impl. Persist on successful /push (using T009 Lead), new protected GET /api/leads/history?limit=20 returning list with enriched for detail. Web HistoryList now fetches serverHistory (fallback to local), shows list (company/contact/date/crm/brief signal), detail pane (full snapshot/opener/follow_ups + CRM ids), "Use similar" pre-fills draft + calls enrichLead for fresh preview + nav to /new. Dashboard integrated (recent from serverHistory). Composer generate now exercises real /enrich (with stub fallback). Shapes, use-similar contract, pagination (simple limit) documented in REVIEW_FOR_T014.md. Builds green; no breakage to push/enrich shapes or CrmClient. Advances T010 (history + persist now present, though routes still inline). See REVIEW_FOR_T014.md + WT subagent-019f5db9-5015-7d63-9a00-9000f465cf85.
   - **Implementer (2026-07-14, subagent 019f5db9-5015-7d63-9a00-9000f465cf85)**: Delivered in isolated worktree. Backend: _persist_lead helper (T009 Lead model), db dep on /push (non-fatal), GET /api/leads/history (protected, user filter via index, limit=20, returns enriched for detail). Web: getHistory in client, serverHistory in store, full HistoryList (fetch, unified local+server display, detail, applySimilar that sets draft + enrich + provider), minor updates to Composer (real generate), App (dashboard recent + link). Updated docs (tasks [x], BUILD append, new REVIEW_FOR_T014.md). Re-reads + verifs (py_compile, tsc, shapes match data-model/UI_UX). No changes to lead_service/adapters/core Crm or T013 main paths. Shapes shared for T015/T013. Ready for sync + reviewer. PASS (mocks + logic; real DB for live).
   - **Tester (2026-07-14, subagent 019f5dba-dbea-7911-9628-a46e0656d5b0)**: Re-verif. Builds GREEN. HistoryList fetches serverHistory (from T014 impl), detail + "use similar" pre-fills + enrich. Local fallback. Dashboard uses it. Flow T013<->T014 GREEN. Awaiting full T010 for complete. See TEST_REPORT_WEB_POLISH.md. No breakage.
-- [ ] **T015** Basic Dashboard + usage display.
-  - **Orchestrator (2026-07-14)**: Inline local stubs in Dashboard (history.length count, lastPushResult, recent slice from T014). No real usage_ledger queries, no DB stats, no memory profile (T009/T025). Pulls from local store only. Builds green. Awaiting T010 + T025. Ties to T014/T024. See App.tsx + store.
-  - **Tester (2026-07-14, subagent 019f5dba-dbea-7911-9628-a46e0656d5b0)**: Builds GREEN. Dashboard pulls from T014 history + T025 usage stubs. Conceptual T015 from T014/T025 GREEN. No real queries yet. Awaiting. See TEST_REPORT_WEB_POLISH.md. No breakage.
+- [x] **T015** Basic Dashboard + usage display.
+  - **Orchestrator (2026-07-14, prior)**: Inline local stubs in Dashboard (history.length count, lastPushResult, recent slice from T014). No real usage_ledger queries, no DB stats, no memory profile (T009/T025). Pulls from local store only. Builds green. Awaiting T010 + T025. Ties to T014/T024. See App.tsx + store.
+  - **Implementer (2026-07-14)**: COMPLETE. Extracted Dashboard to web/src/components/Dashboard.tsx with real API integration.
+    - Calls getConnections() on mount; displays connection status ("Connected: Bitrix24 ✓ / HubSpot (not connected)") with link to /connections if none connected.
+    - Calls getUsageSummary() on mount; displays compact usage line "X calls today, $Y.YY of $Z.ZZ daily budget (remaining)" with remaining budget in green (or red if exceeded) and link to /usage.
+    - Calls getHistory(10) on mount; displays 3 recent leads (company/contact/date/status) with link to /history. Falls back gracefully to local history.
+    - Loading states: Shows "Loading..." for each section.
+    - Error states: Graceful degradation with error message + helpful link.
+    - Empty states: "No leads yet. Create your first lead" with link to /new.
+    - Updated App.tsx: removed inline Dashboard function, imported new component, route now uses real component.
+  - **Verification**: ✓ npm build clean (TypeScript, no errors; 273 kB / 84 kB gzipped). ✓ All fetches wrapped in try/catch. ✓ No unhandled promise rejections. ✓ No infinite re-render loops (correct dependency arrays). ✓ Graceful fallback to local history if server unavailable.
+  - **Files**: Created web/src/components/Dashboard.tsx (122 lines). Modified web/src/App.tsx (import + remove inline function).
+  - **Status**: COMPLETE. All T015 requirements met. Builds green. T010/T012/T015/T024/T025 now all real, committed, integrated work (no stubs).
 
 ## Browser Extension (US2)
 
@@ -134,9 +145,26 @@ description: "Task list template for feature implementation"
   - **Files created**: backend/app/api/memory.py, web/src/components/MemoryProfile.tsx. **Files modified**: backend/app/main.py (+router), backend/app/api/leads.py (+db param, +profile loading), web/src/api/client.ts (+3 functions), web/src/App.tsx (+import, +route, +nav).
   - **Verification**: py_compile clean; pytest 68 passed (no regression); npm build clean (no TS errors).
   - **Status**: COMPLETE. Builds green; all shapes preserved (no breaking changes to /enrich, /push, /history, Composer, Connections, History). Additive only. See BUILD_COORDINATION.md append for full details.
-- [ ] **T025** Usage ledger + simple admin views. (agents spawned 2026-07-14; no implementation yet)
-  - **Orchestrator (2026-07-14)**: UsageLedger model + llm _record_usage (in-mem + log) present. No /usage queries or admin/dashboard views (T010/T015 pending). Conceptual ready. Ties to T015. Awaiting.
-  - **Tester (2026-07-14, subagent 019f5dba-dbea-7911-9628-a46e0656d5b0)**: Builds GREEN. Ledger model + _record_usage ready. No queries/views in T010/T015. Preps T015. Awaiting. See TEST_REPORT_WEB_POLISH.md. No breakage.
+- [x] **T025** Usage ledger + simple admin views. (COMPLETE 2026-07-14)
+  - **Implementer (2026-07-14, Claude Agent)**: Delivered full T025 usage query + web view implementation.
+  - **Backend**: Created `backend/app/api/usage.py` (APIRouter) with:
+    - `GET /api/usage/summary` — returns aggregated usage for current user: total_calls, total_input_tokens, total_output_tokens, total_estimated_cost_cents, today_cost_cents (compared against LLM_DAILY_BUDGET_CENTS), remaining_budget_cents.
+    - `GET /api/usage/history?limit=50` — returns paginated recent UsageLedger entries (model, tokens, cost, created_at, lead_id), ordered by created_at DESC, max 200 for safety.
+    - Auth: HTTPBearer + get_current_user_api (same pattern as memory.py/connections.py).
+    - Multi-tenant: Uses derive_user_uuid() (T012 pattern) for stable lookups.
+    - Graceful error handling: DEBUG mode returns zeros instead of errors.
+  - **Backend wiring**: Updated `backend/app/main.py` to import + include_router(usage_router).
+  - **Web component**: Created `web/src/components/UsageView.tsx` displaying:
+    - Budget bar: today's spend vs daily limit ($X.XX / $Y.YY) with progress indicator; remaining budget.
+    - Stats grid: total_calls, total_cost, total_input_tokens, total_output_tokens.
+    - Recent usage table: model (abbr), in/out tokens, cost_cents, ISO timestamp, lead_id.
+    - Loading/error states; graceful fallback if no backend/usage.
+  - **Web client**: Added `web/src/api/client.ts` functions: getUsageSummary() + getUsageHistory(limit); new interfaces UsageSummaryResponse, UsageHistoryItem, UsageHistoryResponse.
+  - **Web routing**: Updated `web/src/App.tsx`: new /usage route, UsagePage component, nav link, AccountPage link to usage view.
+  - **Verification**: ✓ py_compile clean; ✓ app imports with usage routes; ✓ pytest 68 passed (no regression); ✓ npm build clean (TypeScript type imports fixed).
+  - **Files created**: backend/app/api/usage.py (253 lines), web/src/components/UsageView.tsx (217 lines).
+  - **Files modified**: backend/app/main.py, web/src/api/client.ts, web/src/App.tsx.
+  - **Status**: COMPLETE. Read-only queries on UsageLedger (T010 writes). No changes to enrich/push/memory/connections logic. All additive; no breaking changes. Builds green. Ready for commit + full integration test.
 - [x] **T026** Full test coverage for adapters and orchestration. (agents spawned 2026-07-14; implementation complete 2026-07-14)
   - **Implementer (2026-07-14, Claude Agent)**: Delivered full pytest suite for T026 (T008 orchestration + T007 enrichment + T001/T002 adapters).
     - Setup: Added pytest, pytest-asyncio, pytest-mock to backend/requirements.txt. Created backend/pytest.ini (auto asyncio mode, markers for unit/adapter/factory/service).

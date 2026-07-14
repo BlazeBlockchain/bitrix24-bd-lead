@@ -3461,3 +3461,179 @@ Reviewed `backend/app/api/memory.py`, `backend/app/api/leads.py` diff, `web/src/
 
 **Files changed by this review**: `backend/app/api/leads.py` (tone derivation), `backend/app/services/llm_service.py` (`_build_memory_context` now consumes cadence + tone_samples). No rewrite; targeted fix only. Not committed — left for the normal commit step.
 
+
+---
+
+**2026-07-14 [Claude Agent - T025 Implementation]** Usage Ledger + Simple Admin Views
+- **Task**: T025 - Create backend usage API + web view for cost tracking and budget display.
+- **Scope**: Read-only querying of UsageLedger (written by T010 llm_service._record_usage). No changes to usage recording or enrich/push/memory/connections logic.
+
+**Backend Implementation** (`backend/app/api/usage.py`):
+- Created new APIRouter with two endpoints:
+  - `GET /api/usage/summary` — Returns user's aggregated usage stats: total_calls, total_input_tokens, total_output_tokens, total_estimated_cost_cents, today_cost_cents, remaining_budget_cents, daily_budget_cents.
+  - `GET /api/usage/history?limit=50` — Returns paginated list of recent UsageLedger rows ordered by created_at DESC. Max 200 entries for safety.
+- Auth pattern: HTTPBearer + get_current_user_api (replicated from memory.py to avoid circular imports).
+- Multi-tenant safety: Uses derive_user_uuid() (T012/T024 pattern) for stable user_id lookup.
+- Graceful error handling: Demo mode (DEBUG=True) returns zero values instead of errors.
+- Database: Async SQLAlchemy queries using func.count/sum for aggregates; indexed lookups on (user_id, created_at).
+
+**Backend Wiring** (`backend/app/main.py`):
+- Imported usage router + added app.include_router(usage_router).
+
+**Web Implementation** (`web/src/components/UsageView.tsx`):
+- New component that fetches summary + history on mount.
+- Displays:
+  1. Budget progress bar: today's spend ($X.XX) vs daily limit ($Y.YY); remaining budget; status (ok/exceeded).
+  2. Cumulative stats: total_calls, total_cost, total_input_tokens, total_output_tokens.
+  3. Recent calls table: model, in/out tokens, cost_cents, created_at timestamp, lead_id (if present).
+- Responsive layout with grid for stats, scrollable table for history.
+- Graceful degradation: empty state if no usage yet; fallback to zeros if backend unavailable.
+
+**Web Client** (`web/src/api/client.ts`):
+- Added interfaces: UsageSummaryResponse, UsageHistoryItem, UsageHistoryResponse.
+- Added functions: getUsageSummary() and getUsageHistory(limit).
+- Graceful fallbacks (return defaults/empty on fetch errors).
+
+**Web Routing** (`web/src/App.tsx`):
+- New route: `/usage` → UsagePage component.
+- New nav link in Header: "Usage".
+- Updated AccountPage to link to usage view ("View Usage →").
+
+**Verification**:
+✓ Backend py_compile: app/api/usage.py + app/main.py (no errors).
+✓ Backend import: `from app.main import app` succeeds; routes include /api/usage/summary + /api/usage/history.
+✓ Backend pytest: 68 passed (no regressions; same count as T024).
+✓ Web build: `npm run build` clean (TypeScript type-only imports fixed; 270 kB gzipped).
+
+**Files Created**:
+- backend/app/api/usage.py (253 lines; new router + endpoints).
+- web/src/components/UsageView.tsx (217 lines; usage stats display).
+
+**Files Modified**:
+- backend/app/main.py (added import + include_router for usage).
+- web/src/api/client.ts (added interfaces + 2 client functions).
+- web/src/App.tsx (added import, nav link, UsagePage component, /usage route, Account page link).
+
+**Endpoint Contracts** (T025):
+```
+GET /api/usage/summary
+  Response: {
+    total_calls: int,
+    total_input_tokens: int,
+    total_output_tokens: int,
+    total_estimated_cost_cents: int,
+    today_cost_cents: int,
+    remaining_budget_cents: int,
+    daily_budget_cents: int
+  }
+
+GET /api/usage/history?limit=50
+  Response: {
+    items: [
+      {
+        id: string (UUID),
+        model: string,
+        input_tokens: int,
+        output_tokens: int,
+        estimated_cost_cents: int,
+        created_at: ISO timestamp,
+        lead_id?: string (UUID)
+      }
+    ],
+    total_count: int,
+    limit: int
+  }
+```
+
+**Design Decisions**:
+- Replicated get_current_user_api in usage.py (vs importing from leads.py) to avoid circular dependencies. Pattern matches memory.py.
+- Query aggregates use SQLAlchemy func.sum/count for efficiency; today's cost filtered by created_at >= today_start.
+- Web component uses Promise.all() for parallel fetches (summary + history); graceful loading/error states.
+- Table layout for history (vs list cards) for dense, scannable presentation of token/cost data.
+- Remaining budget capped at 0 to prevent negative display.
+
+**No Breaking Changes**: Usage ledger reading is read-only; all changes additive. T010 (usage recording), T024 (memory), T012 (connections) logic unchanged. T013/T014 (Composer/History) unaffected.
+
+**Status**: COMPLETE. Ready for sync to main + testing. Builds green; no regressions.
+
+
+---
+
+**2026-07-14 [Claude Agent - T015 Implementation]** Basic Dashboard + Usage Display
+- **Task**: T015 - Wire the Dashboard to real backend data (connections, usage, history) instead of local stubs.
+- **Scope**: Update Dashboard component to call getConnections(), getUsageSummary(), getHistory() and display real data. No changes to other components.
+
+**Web Implementation** (`web/src/components/Dashboard.tsx` - NEW):
+- Created new Dashboard component extracted from App.tsx inline function.
+- Three API fetch sections on mount (guarded by isLoggedIn):
+  1. **Connection Status**: Calls getConnections(); displays "Connected: Bitrix24 ✓ / HubSpot (not connected)" with link to /connections if none connected.
+  2. **Usage Summary**: Calls getUsageSummary(); displays compact line "X calls today, $Y.YY of $Z.ZZ daily budget" (remaining budget in green if available, red if exceeded) with link to /usage for full details.
+  3. **Recent Leads**: Calls getHistory(10); displays 3 most recent leads (company/contact/date/status) with link to /history for full list. Falls back gracefully to local history if server unavailable.
+- Loading states: Shows "Loading..." for each section while fetching.
+- Error states: Graceful degradation with error message + helpful link (e.g., "Unable to load connection status. Configure").
+- Empty states: "No leads yet. Create your first lead" with link to /new.
+- Styling: Matches existing card/link patterns from ConnectionsForm/UsageView/HistoryList.
+
+**Web Routing** (`web/src/App.tsx`):
+- Imported Dashboard component (new).
+- Removed old inline Dashboard function (was stubbed, using only local history/lastPushResult).
+- Route unchanged: `<Route path="/" element={<Dashboard />} />` now uses real component.
+
+**No Changes To**:
+- T012 connections API (already working)
+- T025 usage API (already working)
+- T014 history API (already working)
+- Composer, ConnectionsForm, UsageView, MemoryProfile, HistoryList (read-only reference for patterns)
+
+**Verification**:
+✓ `cd web && npm run build` → clean (TypeScript, no errors; Vite bundle 273 kB / 84 kB gzipped).
+✓ No unhandled promise rejections (all fetches wrapped in try/catch; graceful fallback on error).
+✓ No infinite re-render loops (all useEffect hooks have correct dependency arrays; isLoggedIn guard prevents needless refetch).
+✓ Component code review: dependency arrays correct, no missing dependencies, proper cleanup (none needed for this component).
+
+**Files Created**:
+- web/src/components/Dashboard.tsx (122 lines; new real Dashboard component).
+
+**Files Modified**:
+- web/src/App.tsx (added import Dashboard; removed inline Dashboard function; Route updated).
+
+**Status**: COMPLETE. All T015 requirements met. Builds green. Ready for integration test. Next: Mark T015 [x] in tasks.md and note T010/T012/T015/T024/T025/T026 are now all real, committed, integrated work in coordnation.
+
+---
+
+**2026-07-14 [Claude Agent - T015 Review]** Scrutiny pass on Dashboard.tsx before commit
+
+- **Scope reviewed**: `git diff web/src/App.tsx`, `web/src/components/Dashboard.tsx` (full read), `web/src/api/client.ts` (getConnections/getUsageSummary/getHistory shapes), `web/src/stores/appStore.ts`, and the established conventions in `ConnectionsForm.tsx`/`HistoryList.tsx`/`UsageView.tsx`.
+
+1. **useEffect / infinite-loop verdict — PASS.** Three separate `useEffect` hooks, one per fetch:
+   - Connections: deps `[isLoggedIn]` — stable, no loop.
+   - Usage: deps `[isLoggedIn]` — stable, no loop.
+   - History: deps `[isLoggedIn, serverHistory.length, setServerHistory]`. `setServerHistory` is a stable Zustand action reference (created once in `create()`), so it never itself triggers a re-run. `serverHistory.length` is guarded with an early `if (serverHistory.length > 0) return;` inside the async fetcher, so once a non-empty result is stored the length change (0→N) re-runs the effect once more but immediately short-circuits on the guard — no repeated fetching. If the fetch legitimately returns an empty array, length stays 0→0 (no dependency change) so no re-trigger either. Verified no infinite fetch loop.
+
+2. **Unhandled promise rejections — PASS.** Checked `client.ts`: `getConnections()` and `getUsageSummary()` do NOT throw on non-200 (they return safe defaults, `{ connections: [] }` and a zeroed summary object, respectively) — they can only reject on a genuine `fetch()` network failure or a `res.json()` parse error. `getHistory()` already returns `[]` on non-200 for the same reasons. All three calls in Dashboard.tsx are nonetheless wrapped in `try/catch` with `.finally` for loading-state cleanup, matching the defensive convention already used in ConnectionsForm/HistoryList/UsageView. No unhandled rejections found.
+
+3. **Empty/undefined-state handling — PASS.** `connections.length === 0` is checked before `.find()` calls (no crash on empty array). `usageSummary` null-checked before doing cents→dollars math (no NaN in the common path; only a theoretical NaN if the backend returned a malformed partial object missing numeric fields — not a crash, cosmetic only, not introduced by this diff). Recent-leads list checks `displayItems.length === 0` before rendering, uses `.slice(0, 3)` (safe on short/empty arrays), and keys off `item.id || item.timestamp` — no `.data[0]`-style unguarded indexing anywhere.
+
+4. **Logged-out state — PASS.** Every fetcher's first line is `if (!isLoggedIn) return;` inside the effect body, so no network calls fire when logged out; the render path shows the existing "Welcome / Sign in" card instead of the data cards.
+
+5. **Build — PASS.** `cd web && npm run build` (tsc -b && vite build) completed clean: 0 TypeScript errors, Vite bundle built successfully (273.71 kB / 84.27 kB gzip).
+
+**Verdict**: No defects found requiring a fix. The component correctly follows the established loading/error/empty-state conventions from ConnectionsForm.tsx/HistoryList.tsx/UsageView.tsx, guards all three fetches against the logged-out state, and has no infinite-loop or unhandled-rejection risk. No code changes made — reviewed as-is and approved for commit.
+
+---
+
+**2026-07-14 [Orchestrator, final docs reconciliation]**
+
+All 7 outstanding backlog items are now real, committed, working code. Final state, in commit order on `004-ai-bd-assistant`:
+
+1. `382eeff` — T010: leads routes extracted to `backend/app/api/leads.py`, new ownership-checked `GET /api/leads/{lead_id}`, usage-ledger DB persistence.
+2. `7072d98` — T026: 68-test pytest suite (`backend/tests/`) for adapters, factory, lead_service, llm_service.
+3. `6cf649b` — Extension (T016-18): rebuilt from scratch in `extension/`. Confirmed via `git worktree list` and `git log --all -- extension/` that no prior "worktree" delivery ever actually reached main — this commit is the first real extension code in the repo.
+4. `2a53b94` — T012: real `backend/app/api/connections.py` + `ConnectionsForm.tsx`. Review caught and fixed: a multi-tenant credential-collision bug, a missing `ENCRYPTION_KEK` config field, and a dead `resolve_token` DB-lookup path.
+5. `e0ca6ea` — T024: `backend/app/api/memory.py` + `MemoryProfile.tsx`, wired into `/enrich`. Review caught `_build_memory_context` silently dropping cadence/tone_samples.
+6. `6f15a9a` — T025: `backend/app/api/usage.py` + `UsageView.tsx`. Review caught the ledger write path and new read path deriving `user_id` differently (would have shown zero usage forever) — fixed to share `derive_user_uuid()`.
+7. `d3f3324` — T015: `Dashboard.tsx` now pulls real connection/usage/history data instead of local stubs.
+
+Each stage (implement → review → test/commit) was independently re-verified by the orchestrator (py_compile, pytest, `npm run build`, route/import checks) rather than taken on trust from agent summaries — this caught one review agent that crashed mid-edit but had still left a correct, complete fix behind (T025's user_id consistency fix), which was verified before proceeding rather than discarded.
+
+`specs/004-ai-bd-assistant/tasks.md`'s top reconciliation header has been rewritten to reflect this final state (superseding the earlier "partial/stub" summary that predates this pass); individual per-task entries added by each implementer/reviewer are left as-is since they were already accurate.
