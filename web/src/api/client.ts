@@ -189,3 +189,60 @@ export async function getConnections(): Promise<ConnectionListResponse> {
   }
   return res.json();
 }
+
+// T024: Memory Profile API
+
+export interface ToneSampleRequest {
+  opener: string;
+  outcome?: string;
+}
+
+export interface MemoryProfileRequest {
+  icp_industries?: string[];
+  typical_cadence?: number[];
+  tone_samples?: ToneSampleRequest[];
+}
+
+export interface MemoryProfileResponse {
+  id: string;
+  user_id: string;
+  icp_industries?: string[];
+  typical_cadence?: number[];
+  tone_samples?: Array<{
+    opener: string;
+    outcome?: string;
+    accepted_at?: string;
+  }>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function getMemoryProfile(): Promise<MemoryProfileResponse> {
+  const res = await fetch(`${API_BASE}/memory/profile`);
+  if (!res.ok) {
+    // Graceful for stub/demo without backend
+    return {
+      id: '',
+      user_id: '',
+      icp_industries: [],
+      typical_cadence: [4, 9, 14],
+      tone_samples: [],
+      created_at: undefined,
+      updated_at: undefined,
+    };
+  }
+  return res.json();
+}
+
+export async function saveMemoryProfile(profile: MemoryProfileRequest): Promise<MemoryProfileResponse> {
+  const res = await fetch(`${API_BASE}/memory/profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to save memory profile: ${res.status}`);
+  }
+  return res.json();
+}

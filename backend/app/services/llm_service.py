@@ -150,7 +150,24 @@ def _build_memory_context(user: dict | None, memory_context: dict | None = None)
         # Future hook for passed real context
         tone = memory_context.get("tone", "concise benefit-focused")
         icp = ", ".join(memory_context.get("icp", ["SaaS", "B2B"]))
-        return f"User memory: tone={tone}; ICP={icp}; prior accepted openers used benefit-first language."
+        cadence = memory_context.get("cadence") or [4, 9, 14]
+        cadence_str = "/".join(f"+{c}" for c in cadence)
+
+        # T024: surface real tone samples (if loaded from UserMemoryProfile) so the
+        # LLM mimics the user's actual accepted openers rather than a generic label.
+        tone_samples = memory_context.get("tone_samples") or []
+        samples_str = ""
+        if tone_samples:
+            examples = "; ".join(
+                f'"{ts.get("opener", "")[:160]}"' for ts in tone_samples[:3] if ts.get("opener")
+            )
+            if examples:
+                samples_str = f" Prior accepted openers (mimic this exact style): {examples}."
+
+        return (
+            f"User memory: tone={tone}; ICP={icp}; cadence preference={cadence_str} days."
+            f"{samples_str} Prior accepted openers used benefit-first language."
+        )
 
     if not user:
         return "No prior memory for this user (first lead). Use professional, direct, value-focused tone."

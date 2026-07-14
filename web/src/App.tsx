@@ -3,6 +3,7 @@ import { useAppStore } from './stores/appStore';
 import { Composer } from './components/Composer';
 import { ConnectionsForm } from './components/ConnectionsForm';
 import { HistoryList } from './components/HistoryList';
+import { MemoryProfile } from './components/MemoryProfile';
 import './App.css';
 
 /**
@@ -27,6 +28,7 @@ function Header() {
         <NavLink to="/new" className={({ isActive }) => isActive ? 'active' : ''}>New Lead</NavLink>
         <NavLink to="/history" className={({ isActive }) => isActive ? 'active' : ''}>History</NavLink>
         <NavLink to="/connections" className={({ isActive }) => isActive ? 'active' : ''}>Connections</NavLink>
+        <NavLink to="/memory" className={({ isActive }) => isActive ? 'active' : ''}>Memory</NavLink>
         <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>Account</NavLink>
       </nav>
 
@@ -73,10 +75,13 @@ function Dashboard() {
           )}
 
           <div className="card">
-            <h2>Recent leads (stub)</h2>
-            {history.length > 0 ? history.slice(0, 3).map(h => (
-              <div key={h.id}>{h.input.company_name} → {h.result?.contact_id}</div>
-            )) : <p>No history yet.</p>}
+            <h2>Recent leads (T015 + T014)</h2>
+            {(history.length > 0 || useAppStore.getState().serverHistory.length > 0) ? (
+              (useAppStore.getState().serverHistory.length ? useAppStore.getState().serverHistory : history).slice(0, 3).map((h: any) => (
+                <div key={h.id || h.timestamp}>{(h.company_name || h.input?.company_name)} → {(h.crm_contact_id || h.result?.contact_id)}</div>
+              ))
+            ) : <p>No history yet. <Link to="/history">View full history</Link></p>}
+            <Link to="/history">See all history →</Link>
           </div>
         </>
       )}
@@ -130,15 +135,22 @@ function AccountPage() {
   const { user, logout, isLoggedIn } = useAppStore();
   return (
     <div className="page">
-      <h1>Account (stub)</h1>
+      <h1>Account</h1>
       {isLoggedIn && user ? (
         <div className="card">
           <p>{user.name} &lt;{user.email}&gt;</p>
-          <p>Memory profile stub, usage stub (T015).</p>
+          <p>Manage your account settings and preferences below.</p>
           <button className="secondary" onClick={logout}>Logout</button>
         </div>
       ) : <p>Not logged in.</p>}
-      <div className="stub-note">Full account + memory editor later.</div>
+
+      <div className="card">
+        <h2>Memory Profile</h2>
+        <p>Customize your personal tone, target industries, and follow-up cadence for AI-powered lead enrichment.</p>
+        <Link to="/memory"><button>Edit Memory Profile →</button></Link>
+      </div>
+
+      <div className="stub-note">Usage dashboard and additional settings coming soon.</div>
     </div>
   );
 }
@@ -152,6 +164,7 @@ function App() {
         <Route path="/new" element={<NewLeadPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/connections" element={<ConnectionsPage />} />
+        <Route path="/memory" element={<MemoryProfile />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="*" element={<div className="page"><p>Page not found. <Link to="/">Go home</Link></p></div>} />
       </Routes>

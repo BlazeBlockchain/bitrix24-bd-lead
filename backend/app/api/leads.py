@@ -25,10 +25,10 @@ from datetime import datetime
 
 from app.config import settings
 from app.database import get_db
-from app.models import Lead, UsageLedger
+from app.models import Lead, UsageLedger, UserMemoryProfile
 from app.services.lead_service import create_lead_with_followups
 from app.services.llm_service import generate_enrichment
-from app.services.token_vault import resolve_token, resolve_stored_token
+from app.services.token_vault import resolve_token, resolve_stored_token, derive_user_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -135,11 +135,15 @@ async def get_current_user_api(
 async def enrich_lead(
     lead: LeadPushInput,
     current_user: dict = Depends(get_current_user_api),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
-    T007 LLM enrichment for preview (Composer "Generate with AI").
+    T007 + T024 LLM enrichment for preview (Composer "Generate with AI").
 
-    Calls generate_enrichment (Gemini primary + Haiku fallback; memory context injected via current_user).
+    T024 enhancement: loads current user's UserMemoryProfile (tone_samples, icp_industries, typical_cadence)
+    and injects as memory_context into generate_enrichment for personalized output.
+
+    Calls generate_enrichment (Gemini primary + Haiku fallback; memory context injected via current_user + loaded profile).
     Structured output: snapshot + opener + 3 follow-ups + rationale.
     No CrmClient / token involved. Budget + logging applied inside service.
 
@@ -147,11 +151,39 @@ async def enrich_lead(
     """
     logger.debug(f"enrich_lead invoked by current_user={current_user.get('email')}")
     try:
-        result = await generate_enrichment(lead.model_dump(), current_user=current_user)
+        # T024: load memory profile for this user (if exists)
+        memory_context = None
+        try:
+            user_uuid = derive_user_uuid(current_user.get("id") or "00000000-0000-0000-0000-000000000001")
+            stmt = select(UserMemoryProfile).where(UserMemoryProfile.user_id == user_uuid)
+            result = await db.execute(stmt)
+            profile = result.scalar_one_or_none()
+            if profile:
+                # T024: derive an actual tone description from the user's saved tone_samples
+                # (instead of a static placeholder), so _build_memory_context can surface real
+                # personalization rather than silently ignoring the loaded profile fields.
+                tone_desc = (
+                    "personal tone derived from prior accepted openers"
+                    if profile.tone_samples
+                    else "concise benefit-focused (no tone samples saved yet)"
+                )
+                memory_context = {
+                    "tone": tone_desc,
+                    "icp": profile.icp_industries or ["SaaS", "B2B"],
+                    "cadence": profile.typical_cadence or [4, 9, 14],
+                    "tone_samples": profile.tone_samples or [],
+                }
+                logger.debug(f"Loaded memory profile for user {user_uuid}: icp={profile.icp_industries}, cadence={profile.typical_cadence}")
+        except Exception as e:
+            logger.debug(f"Non-fatal: could not load memory profile: {e}")
+            # Continue without memory context (graceful degradation)
+
+        result = await generate_enrichment(lead.model_dump(), current_user=current_user, memory_context=memory_context)
         return {
             **result,
             "authenticated_as": current_user.get("email") or current_user.get("id"),
             "provider_default": settings.DEFAULT_CRM_PROVIDER,
+            "memory_context_injected": memory_context is not None,
         }
     except Exception as e:
         logger.exception("LLM enrichment failed")
