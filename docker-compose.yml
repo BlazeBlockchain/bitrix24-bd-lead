@@ -14,7 +14,7 @@ services:
     networks:
       - bbspace_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bdlead}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bdlead} -d ${POSTGRES_DB:-bdlead_db}"]
       interval: 5s
       timeout: 5s
       retries: 5

@@ -373,7 +373,7 @@ Companion:
 - `docs/development-options.md`
 - `docs/market_research.md`
 
-**Build status (2026-07-14)**: All tasks (T001-T027) complete and verified running end-to-end via Docker (backend + Postgres/pgvector) + the web dev server, including a genuine `docker compose up -d --build` migration/health smoke test. See [tasks.md](./specs/004-ai-bd-assistant/tasks.md) + [BUILD_COORDINATION.md](./BUILD_COORDINATION.md) for the full history.
+**Build status (2026-07-15)**: All tasks (T001-T027) complete and verified running end-to-end via Docker (backend + Postgres/pgvector) + the web dev server, including a genuine `docker compose up -d --build` migration/health smoke test. See [tasks.md](./specs/004-ai-bd-assistant/tasks.md) + [BUILD_COORDINATION.md](./BUILD_COORDINATION.md) for the full history.
 
 ---
 
