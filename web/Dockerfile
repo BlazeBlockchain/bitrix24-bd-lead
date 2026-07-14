@@ -18,9 +18,11 @@ COPY web/tsconfig*.json web/vite.config.ts web/index.html ./
 # Vite alias @repo resolves to repo root; CHANGELOG lands at /
 COPY CHANGELOG.md ../
 
-# Accept base path as build argument (default: /)
+# Accept base path and Google OAuth client ID as build arguments
 ARG VITE_BASE=/
+ARG VITE_GOOGLE_CLIENT_ID=
 ENV VITE_BASE=$VITE_BASE
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
 # Build application (produces dist/)
 RUN npm run build

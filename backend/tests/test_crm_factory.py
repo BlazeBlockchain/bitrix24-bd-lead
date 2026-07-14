@@ -92,22 +92,20 @@ class TestCrmFactory:
             mock_vault.assert_called_once_with(mock_user, "bitrix24")
             assert isinstance(client, Bitrix24Client)
 
-    def test_vault_fallback_to_settings_on_error(self):
-        """Test fallback to settings if vault resolution fails."""
+    def test_vault_failure_raises_error(self):
+        """Test that vault failure raises (no silent settings fallback)."""
         mock_user = {"id": "user-456"}
 
-        with patch("app.services.token_vault.resolve_token") as mock_vault, \
-             patch("app.config.settings") as mock_settings:
-            mock_vault.side_effect = Exception("Vault error")
-            mock_settings.BITRIX24_WEBHOOK_URL = "https://fallback.bitrix24.com/rest/1/token/"
+        with patch("app.services.token_vault.resolve_token") as mock_vault:
+            mock_vault.side_effect = ValueError("Vault error (fail-closed)")
 
-            client = create_crm_client(
-                provider="bitrix24",
-                config="",
-                current_user=mock_user,
-            )
-
-            assert isinstance(client, Bitrix24Client)
+            import pytest as _pytest
+            with _pytest.raises(ValueError, match="Vault error"):
+                create_crm_client(
+                    provider="bitrix24",
+                    config="",
+                    current_user=mock_user,
+                )
 
     def test_explicit_config_overrides_vault(self):
         """Test that explicit config takes precedence over vault."""

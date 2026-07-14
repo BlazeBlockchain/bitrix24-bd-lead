@@ -61,7 +61,7 @@ export const Composer: React.FC = () => {
 
   const handlePush = async () => {
     if (!isLoggedIn) {
-      alert('Stub login first (use Login button in header).');
+      window.location.href = '/login';
       return;
     }
     setLoading(true);
@@ -95,9 +95,10 @@ export const Composer: React.FC = () => {
 
   return (
     <div className="main-content">
+      <h1 style={{ marginTop: 0 }}>New Lead</h1>
       <div className="stub-note">
-        Skeleton: "Generate with AI" is stub (instant preview from form). Push calls real /api/leads/push stub (creates in CRM via backend CrmClient).
-        Backend must be up (docker compose or uvicorn). Use Connections to set provider/token for demo.
+        Generate with AI calls LLM via backend. Push creates lead in connected CRM.
+        Backend must be up (docker compose or uvicorn). Use Connections to set provider/token.
       </div>
 
       <div className="split">
@@ -139,7 +140,7 @@ export const Composer: React.FC = () => {
 
           <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
             <button onClick={handleGenerate} disabled={isGenerating}>
-              {isGenerating ? 'Generating...' : 'Generate with AI (stub)'}
+              {isGenerating ? 'Generating...' : 'Generate with AI'}
             </button>
             <button onClick={handlePush} disabled={loading || !previewGenerated || !draft.company_name}>
               {loading ? 'Pushing...' : 'Push to CRM'}
@@ -163,11 +164,11 @@ export const Composer: React.FC = () => {
         {/* Preview pane (right) */}
         <div className="card preview">
           {isGenerating ? (
-            <div className="skeleton">Contacting LLM… (stub)</div>
+            <div className="skeleton">Contacting LLM…</div>
           ) : (
             <Preview data={previewData} />
           )}
-          {previewGenerated && <div className="stub-note" style={{ marginTop: 8, fontSize: 12 }}>Preview "generated" (stub). Real /enrich + memory injection in T013.</div>}
+          {previewGenerated && <div className="stub-note" style={{ marginTop: 8, fontSize: 12 }}>Preview generated via LLM enrichment.</div>}
         </div>
       </div>
     </div>

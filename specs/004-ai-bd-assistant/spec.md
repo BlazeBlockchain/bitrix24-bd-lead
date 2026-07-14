@@ -2,8 +2,10 @@
 
 **Feature Branch**: `004-ai-bd-assistant`  
 **Created**: 2026-07-13  
-**Status**: Draft  
+**Status**: Finalized (review findings A1, A8 applied 2026-07-14)  
 **Input**: User description: "Build AI-native BD lead assistant with backend, web app and browser extension. Per-user memory, Google auth, cheap LLM (Gemini primary + Haiku), CrmClient for Bitrix24 + HubSpot. Grounded in CONCEPT, ARCHITECTURE, FEATURES, UI_UX docs."
+
+> **Implementation Reality**: Backend is pure Python FastAPI (no Node/Hono layer). Web is React 18 + Vite + TypeScript (not Next.js). Extension is MV3 vanilla JS (no build deps). The TypeScript MCP server (`src/`) remains as a legacy thin stdio wrapper sharing the same CrmClient contract via Python adapters — see `backend/app/adapters/crm/`. All references to hybrid backend or Next.js in the original draft are superseded by the implemented Python-first architecture.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -93,12 +95,12 @@ As a returning user, I can browse my past leads, see what was pushed, and have t
 **In Scope (MVP slice)**:
 - Google OAuth + JWT auth
 - Bitrix24 + HubSpot adapters via CrmClient
-- Backend (FastAPI/Python preferred + possible Node layer) with LLM proxy, memory layer (Postgres + pgvector), token vault
-- Web app (React/Vite or Next.js) with composer, preview, history, connections
-- MV3 browser extension (thin client)
+- Backend (Python FastAPI) with LLM proxy, memory layer (Postgres + pgvector), token vault
+- Web app (React/Vite) with composer, preview, history, connections
+- MV3 browser extension (thin client, vanilla JS)
 - Basic usage tracking and guardrails
 - Docker Compose deployment setup
-- MCP compatibility layer
+- MCP compatibility layer via legacy TypeScript wrapper reusing shared Python adapters
 
 **Out of Scope (Roadmap)**:
 - Real Stripe billing and paid tiers (stub only)
@@ -124,14 +126,14 @@ As a returning user, I can browse my past leads, see what was pushed, and have t
 - `docs/development-options.md`
 - `docs/market_research.md`
 - Sibling vanguard-game architecture and deployment patterns
-- Current `src/client.ts` + `src/tool.ts` (to be refactored into shared CrmClient + core)
+- `backend/app/adapters/crm/` — Python CrmClient implementations (Bitrix24 + HubSpot)
 
-## Open Questions / NEEDS CLARIFICATION
+## Open Questions / NEEDS CLARIFICATION (Resolved)
 
-- Exact memory schema and vector strategy (to be resolved during data-model in plan phase).
-- Backend language split (pure FastAPI vs hybrid) — default to vanguard alignment unless clarified.
-- Pricing model details (free tier limits) — stub for MVP.
-- Whether to use Next.js for web (auth/billing convenience) or stick to Vite + React.
+- Exact memory schema and vector strategy → **Resolved**: Per-user memory profiles stored in `user_memory_profiles` table with JSON fields for tone_samples, icp_industries, typical_cadence. Vector embeddings deferred from MVP (full-text + recent N used instead).
+- Backend language split (pure FastAPI vs hybrid) → **Resolved**: Pure Python FastAPI. No Node/Hono API layer. TypeScript MCP server (`src/`) retained as legacy thin stdio wrapper sharing CrmClient contract via Python adapters.
+- Pricing model details (free tier limits) → **Resolved**: Stub for MVP with per-user daily LLM budget guardrail (`LLM_DAILY_BUDGET_CENTS`). Hard limit enforced server-side before enrichment.
+- Whether to use Next.js for web (auth/billing convenience) or stick to Vite + React → **Resolved**: React 18 + Vite + TypeScript. No Next.js. Auth handled via Google Identity Services library + backend `/api/auth/google` endpoint.
 
 ---
 *This spec is derived from the product foundation docs created in the prior phase and the approved implementation plan.*

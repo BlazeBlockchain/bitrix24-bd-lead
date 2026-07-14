@@ -30,7 +30,9 @@ services:
       DEFAULT_CRM_PROVIDER: ${DEFAULT_CRM_PROVIDER:-bitrix24}
       BITRIX24_WEBHOOK_URL: ${BITRIX24_WEBHOOK_URL:-}
       HUBSPOT_ACCESS_TOKEN: ${HUBSPOT_ACCESS_TOKEN:-}
-      # JWT etc later
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-in-prod}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}  # comma-separated, or empty for same-origin (nginx proxy)
     depends_on:
       bdlead-db:
         condition: service_healthy
@@ -51,6 +53,7 @@ services:
       dockerfile: web/Dockerfile
       args:
         VITE_BASE: "/"
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
       - "${WEB_PORT:-8080}:80"
     networks:

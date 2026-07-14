@@ -10,13 +10,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.2] - 2026-07-14
 
 ### Added
--
+- Full Google OAuth authentication (`POST /api/auth/google` + `GET /api/auth/me`)
+- Frontend Google Sign-In via Google Identity Services (GIS) library
+- Shared `get_current_user_api` auth dependency in `backend/app/api/auth.py` (single canonical implementation, replaces 4x duplication)
+- JWT token issuance and verification with `python-jose` (HS256, short-lived tokens)
+- `googLe-auth` library for server-side Google ID token verification
+- `VITE_GOOGLE_CLIENT_ID` build arg for web Dockerfile
+- User lookup/creation in `users` table on Google sign-in
+- CORS origins now configurable via `CORS_ORIGINS` env var (restricted from wildcard)
+- `web/src/api/auth.ts` — auth-specific API client (token storage, exchange, user fetch)
+- `web/src/components/LoginPage.tsx` — login page with Google sign-in button
+- `web/src/components/GoogleLoginButton.tsx` — Google Identity Services integration component
+- `web/src/google-types.d.ts` — TypeScript declarations for GIS library
+- `web/.env.example` with VITE_GOOGLE_CLIENT_ID documentation
+- `__pycache__/`, `*.pyc`, `.venv/` patterns to root `.gitignore`
 
 ### Changed
--
+- `backend/app/services/token_vault.py` — removed DEBUG fallback that bypassed encrypted vault (fail-closed per review A2)
+- `backend/app/adapters/crm/__init__.py` — removed vault-resolve settings fallback in factory
+- `backend/app/services/token_vault.py` — removed DEBUG ciphertext fallback in `decrypt_credentials`
+- `specs/004-ai-bd-assistant/spec.md` — synced to reflect Python FastAPI reality (resolved language, Next.js, pricing open questions)
+- All 4 API routers (`leads.py`, `connections.py`, `memory.py`, `usage.py`) — removed duplicated auth code, import shared dependency
+- `backend/app/config.py` — added `GOOGLE_CLIENT_ID`, `JWT_ALGORITHM`, `JWT_EXPIRE_MINUTES` settings
+- `backend/app/main.py` — added auth router, restricted CORS from wildcard to configurable origins
+- `docker-compose.yml` — added `GOOGLE_CLIENT_ID`, `JWT_SECRET`, `CORS_ORIGINS` env vars; added `VITE_GOOGLE_CLIENT_ID` build arg for web service
+- `web/src/api/client.ts` — all protected API calls now include `Authorization: Bearer <jwt>` header
+- `web/src/stores/appStore.ts` — replaced stub `login()` with `setAuthFromToken()` for real JWT auth flow
+- `web/src/App.tsx` — replaced stub sign-in/logout with real Google Sign-In; added `RequireAuth` guard component; added `/login` route
+- `docs/ARCHITECTURE.md` — updated status, Google Auth section with implementation details, resolved decisions
+- `.env.example` — documented `GOOGLE_CLIENT_ID` and updated JWT section
 
 ### Fixed
--
+- DEBUG vault bypass in `resolve_token` (A2) — no longer silently returns settings-based tokens
+- 4x duplicated `get_current_user_api` code consolidated into single shared module
+- CORS wildcard (`*`) restricted to configurable origins
+- Token vault decrypt now fail-closed (no DEBUG ciphertext fallback)
+- Factory vault-resolve fallback removed (fail-closed behavior)
 
 ## [0.1.1] - 2026-07-14
 

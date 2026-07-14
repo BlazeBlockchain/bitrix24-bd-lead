@@ -25,6 +25,18 @@ Thumbs.db
 *.swo
 *~
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Python virtual envs
+.venv/
+venv/
+.venv*/
+venv*/
+
 # Coverage / test artifacts
 coverage/
 .nyc_output/

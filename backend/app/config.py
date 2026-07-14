@@ -26,10 +26,14 @@ class Settings(BaseSettings):
     BITRIX24_WEBHOOK_URL: str = ""
     HUBSPOT_ACCESS_TOKEN: str = ""
 
-    # Auth stub (T005): placeholder JWT secret. Real Google OAuth + proper JWT in T005/T006.
-    # Use for HS256 placeholder validation (python-jose). DEMO allows bypass in debug.
+    # Auth (T005+): Real Google OAuth + JWT (full implementation per review)
+    # Google OAuth client credentials (from Google Cloud Console)
+    GOOGLE_CLIENT_ID: str = ""
+    # JWT signing secret (used for HS256 — must be 32+ chars in production)
     JWT_SECRET: str = "dev-jwt-secret-change-me-in-prod"
-    DEMO_AUTH_TOKEN: str = "demo-stub-jwt"  # for direct testing of protected routes in skeleton
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60  # short-lived tokens, refresh via re-auth
+    DEMO_AUTH_TOKEN: str = "demo-stub-jwt"  # kept for backward compat during transition
 
     # LLM proxy (T007): Gemini 2.5 Flash primary + Haiku fallback. Keys server-only.
     # Add to .env for real calls; if empty/DEBUG -> internal mock used for verif + demo.

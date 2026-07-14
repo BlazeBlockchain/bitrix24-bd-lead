@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db, close_db
+from app.api.auth import router as auth_router
 from app.api.leads import router as leads_router
 from app.api.connections import router as connections_router
 from app.api.memory import router as memory_router
@@ -45,10 +46,15 @@ app = FastAPI(
     debug=settings.DEBUG,
 )
 
-# Configure CORS (open for skeleton; tighten later)
+# Configure CORS (restricted per review finding; set CORS_ORIGINS env var for dev)
+# In production behind nginx reverse proxy, /api requests are same-origin so CORS is not needed.
+# For dev frontend (Vite on :5173), set CORS_ORIGINS=http://localhost:5173
+import os
+_cors_origins_str = os.getenv("CORS_ORIGINS", "") or ""
+_cors_origins = [o.strip() for o in _cors_origins_str.split(",") if o.strip()] if _cors_origins_str else ["http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,7 +84,8 @@ async def health_check():
     return {"status": "ok", "version": settings.APP_VERSION, "provider_default": settings.DEFAULT_CRM_PROVIDER}
 
 
-# Include routers from app.api (T010: extracted modules, T012: connections, T024: memory, T025: usage)
+# Include routers from app.api (auth, leads, connections, memory, usage)
+app.include_router(auth_router)
 app.include_router(leads_router)
 app.include_router(connections_router)
 app.include_router(memory_router)

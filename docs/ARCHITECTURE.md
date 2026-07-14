@@ -1,8 +1,8 @@
 # ARCHITECTURE: AI-Native BD Lead Assistant
 
 **Project:** bitrix24-bd-lead  
-**Status:** Draft (Phase 0)  
-**Date:** 2026-07-13  
+**Status:** Active Development (v0.1.2)  
+**Date:** 2026-07-14  
 **Template:** Mirrors sibling `vanguard-game` (see `docs/architecture.md` and `docs/deploy.md` there) + guidance from `docs/development-options.md`
 
 ---
@@ -133,28 +133,31 @@ Migrations via Alembic (Python side) or equivalent.
 
 ---
 
-## Google Auth / Services
+## Google Auth / Services (Implemented v0.1.2)
 
-**User authentication (recommended):**
-- "Sign in with Google" (OAuth2).
-- Backend exchanges code → stores google_sub + email.
-- Issues short-lived JWT (HS256, like vanguard) for subsequent API calls.
-- Frontend stores JWT (localStorage or httpOnly as hardening later); extension uses chrome.storage.
-- Refresh flow via Google refresh tokens or re-auth.
+**User authentication flow:**
+1. Frontend loads Google Identity Services (GIS) library and renders "Sign in with Google" button.
+2. User clicks → Google popup → GIS returns an ID token to the frontend.
+3. Frontend sends ID token to `POST /api/auth/google`.
+4. Backend verifies the ID token using `google-auth` library (cryptographic verification against Google's public keys).
+5. Backend looks up user by `google_sub` or `email` in the `users` table; creates new user if not found.
+6. Backend issues a signed HS256 JWT (via `python-jose`) with short expiry (configurable, default 60 min).
+7. Frontend stores JWT in `localStorage`, includes it as `Authorization: Bearer <jwt>` in all API calls.
+8. All protected endpoints use the shared `get_current_user_api` dependency (from `app/api/auth.py`) which verifies the JWT signature on every request — no silent DEBUG fallback.
 
-**Why Google over email/password for this audience:**
-- Zero password friction.
-- High trust signal for a new tool handling CRM tokens.
-- Easy to add "Sign in with LinkedIn" or email later.
+**Key implementation details:**
+- `POST /api/auth/google` — Google ID token → signed JWT exchange (creates/looks up user).
+- `GET /api/auth/me` — returns current user info (protected by JWT).
+- `get_current_user_api` — single canonical auth dependency used by all 4 API routers (leads, connections, memory, usage). Replaces 4x duplicated stub code.
+- `create_access_token()` — issues HS256 JWTs with configurable expiry (`JWT_EXPIRE_MINUTES`).
+- Auth is fail-closed: no DEBUG bypass, no stub users, no silent fallback. Missing/invalid token → 401.
+- Token vault (`resolve_token`) is also fail-closed per review finding A2 — no DEBUG settings fallback.
 
-**Google services usage (LLM + future):**
-- Primary LLM via Google Gemini SDK (`gemini-2.5-flash`).
-- Optional later: Google Workspace export, Drive folder for saved plans, or additional signals via People API (with explicit consent).
-
-**Security notes (mandatory before first users):**
-- All CRM tokens envelope-encrypted at rest with user-specific key derived from JWT or separate KEK.
-- Audit log for any read of another user's memory or token.
-- Google client secrets in server env only (never client-side).
+**Security:**
+- `GOOGLE_CLIENT_ID` is a server-side env var (never exposed as a secret). The frontend uses it as `VITE_GOOGLE_CLIENT_ID` (public identifier, safe to expose).
+- JWT signing secret (`JWT_SECRET`) is server-only.
+- All CRM tokens envelope-encrypted at rest with server-side KEK.
+- No user secrets in client bundles or API responses.
 
 ---
 
@@ -301,12 +304,14 @@ See root [SECURITY.md](../SECURITY.md) (T023, T030) + detailed refs to `backend/
 
 ---
 
-## Open Decisions (to resolve in Speckit research or with user)
+## Resolved Decisions (from Speckit planning + implementation)
 
-- Full backend language split (pure Python FastAPI vs hybrid Node API + Python workers).
-- Exact vector usage (per-lead embeddings + profile vs. simpler full-text + recent N).
-- Hosting during dev (share vanguard VPS?).
-- Whether to use Auth.js / NextAuth if choosing Next.js for web.
+- Backend language split → **Resolved**: Pure Python FastAPI. No Node/Hono layer. TypeScript MCP server (`src/`) retained as legacy thin stdio wrapper.
+- Auth approach → **Resolved**: Google Identity Services (frontend) + `google-auth` (backend verification) + `python-jose` (JWT signing). No NextAuth/Auth.js.
+- Vector usage → **Resolved**: Postponed from MVP. Full-text + recent N used for memory injection. pgvector schema exists for future use.
+- Frontend → **Resolved**: React 18 + Vite + TypeScript (no Next.js). Auth managed via custom components + Zustand store.
+
+**Hosting for dev**: Share vanguard VPS or local Docker Compose.
 
 See `CONCEPT.md` and `FEATURES.md` for product constraints that bound these choices.
 

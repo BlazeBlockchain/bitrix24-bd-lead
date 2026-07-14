@@ -17,13 +17,13 @@ import uuid
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
+from app.api.auth import get_current_user_api
 from app.config import settings
 from app.database import get_db
 from app.models import CrmConnection
@@ -36,78 +36,7 @@ router = APIRouter(prefix="/api/connections", tags=["connections"])
 __all__ = ["router"]
 
 
-# ─── Auth dependency (same as leads.py) ───
-
-security = HTTPBearer(auto_error=False)
-
-
-async def get_current_user_api(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-) -> dict[str, Any]:
-    """Protected dependency stub (T005).
-
-    Returns minimal user dict (id/email/display_name) per data-model User.
-    Reused from app.api.leads to keep auth consistent.
-    """
-    token = credentials.credentials if credentials else None
-
-    if not token:
-        if settings.DEBUG:
-            logger.debug("get_current_user: no Authorization header, using DEBUG stub user (demo fallback)")
-            return {
-                "id": "stub-user-00000000-0000-0000-0000-000000000001",
-                "email": "demo@local.test",
-                "display_name": "Demo User (T005 stub)",
-            }
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated (Authorization: Bearer <token> required)",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Placeholder user from token
-    user: dict[str, Any] = {
-        "id": "stub-from-token",
-        "email": "user@stub.test",
-        "display_name": "Authenticated Stub",
-        "token_preview": (token[:12] + "...") if len(token) > 12 else token,
-    }
-
-    # Attempt placeholder JWT decode FIRST (stdlib, no sig verify - skeleton only)
-    try:
-        import base64
-        import json
-        parts = token.split(".")
-        if len(parts) == 3:
-            payload_b64 = parts[1] + "=="
-            payload_bytes = base64.urlsafe_b64decode(payload_b64)
-            payload = json.loads(payload_bytes.decode("utf-8", errors="ignore"))
-            if isinstance(payload, dict):
-                user.update({
-                    "id": payload.get("sub") or payload.get("user_id") or user["id"],
-                    "email": payload.get("email") or user["email"],
-                    "display_name": payload.get("name") or payload.get("display_name") or user["display_name"],
-                })
-                user["jwt_payload"] = payload
-                user["note"] = "T005 placeholder JWT decoded via stdlib"
-                return user
-    except Exception as e:
-        logger.debug(f"placeholder JWT decode failed (ok for demo tokens): {e}")
-
-    if token == settings.DEMO_AUTH_TOKEN or (settings.DEBUG and len(token) > 0):
-        user["note"] = "T005 debug/demo auth accepted (Authorization or fallback)"
-        return user
-
-    if settings.DEBUG:
-        user["note"] = "T005 fallback in DEBUG after placeholder attempt"
-        return user
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid auth token (stub validation)",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
+# Auth dependency imported from app.api.auth (shared, single canonical implementation)
 
 # ─── Input models ───
 

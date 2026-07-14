@@ -54,18 +54,9 @@ def create_crm_client(provider: CrmProvider = "bitrix24", config: str = "", curr
     if not config and current_user:
         # T006: resolve from vault (envelope decrypt per current_user + provider)
         # Lazy import to avoid cycles (vault may be used by main/service too).
-        try:
-            from app.services.token_vault import resolve_token
-            config = resolve_token(current_user, provider)
-        except Exception as e:  # pragma: no cover
-            # Fall through to settings fallback (dev safety)
-            import logging
-            from app.config import settings as _s
-            logging.getLogger(__name__).debug(f"vault resolve in factory failed, using settings fallback: {e}")
-            if provider == "hubspot":
-                config = _s.HUBSPOT_ACCESS_TOKEN
-            else:
-                config = _s.BITRIX24_WEBHOOK_URL
+        # Removed settings-fallback bypass per review finding A2 — vault must be fail-closed.
+        from app.services.token_vault import resolve_token
+        config = resolve_token(current_user, provider)
 
     if not config:
         # Original T004 stub fallback (settings)

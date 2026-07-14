@@ -91,9 +91,6 @@ def decrypt_credentials(ciphertext: str) -> str:
         return f.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
     except (InvalidToken, Exception) as e:
         logger.warning(f"token_vault decrypt failed (bad key/tamper?): {e}")
-        # In prod: do not fallback; raise to surface misconfig
-        if settings.DEBUG:
-            return ciphertext  # dev convenience only
         raise
 
 
@@ -147,23 +144,8 @@ def resolve_token(
     #     except Exception as e:
     #         logger.debug(f"token_vault DB lookup skipped/failed (ok pre-T009): {e}")
 
-    # Stub / demo path (no real store/lookup yet)
-    if settings.DEBUG:
-        if prov in ("hubspot", "hs"):
-            tok = settings.HUBSPOT_ACCESS_TOKEN
-            if tok:
-                logger.debug("token_vault: DEBUG fallback to HUBSPOT_ACCESS_TOKEN")
-                return tok
-            # allow tests/mocks to proceed with recognizable stub
-            return "demo-hubspot-token-stub-from-vault"
-        # bitrix24 default
-        tok = settings.BITRIX24_WEBHOOK_URL
-        if tok:
-            logger.debug("token_vault: DEBUG fallback to BITRIX24_WEBHOOK_URL")
-            return tok
-        return "https://demo.bitrix24.com/rest/1/demo-token-from-vault/"
-
     # Production-like without stored connection: force explicit connect first
+    # (DEBUG bypass removed per review finding A2 — vault must be fail-closed)
     raise ValueError(
         f"No CRM token stored for user_id={user_id} provider={prov} "
         "(T006 vault). Use connect flow or pass ?token= override in dev."

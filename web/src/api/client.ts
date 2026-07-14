@@ -9,6 +9,21 @@
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const API_BASE = base + '/api';
 
+/** Get stored JWT for Authorization header. */
+function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem('bd_lead_jwt');
+  } catch {
+    return null;
+  }
+}
+
+/** Helper: merge auth header into fetch options. */
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export interface LeadPushInput {
   company_name: string;
   deal_name: string;
@@ -61,7 +76,7 @@ export async function pushLead(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // JWT will go here later: 'Authorization': `Bearer ${jwt}`
+      ...authHeaders(),
     },
     body: JSON.stringify(input),
   });
@@ -76,7 +91,7 @@ export async function pushLead(
 
 // T014 + T013: history + enrich (additive, no breakage to push)
 export async function getHistory(limit = 20): Promise<any[]> {
-  const res = await fetch(`${API_BASE}/leads/history?limit=${limit}`);
+  const res = await fetch(`${API_BASE}/leads/history?limit=${limit}`, { headers: authHeaders() });
   if (!res.ok) {
     // graceful for stub/demo without rows or backend
     return [];
@@ -87,7 +102,10 @@ export async function getHistory(limit = 20): Promise<any[]> {
 export async function enrichLead(input: LeadPushInput): Promise<any> {
   const res = await fetch(`${API_BASE}/leads/enrich`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -134,7 +152,10 @@ export interface ConnectionListResponse {
 export async function connectBitrix24(webhookUrl: string): Promise<ConnectionResponse> {
   const res = await fetch(`${API_BASE}/connections/bitrix24`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
     body: JSON.stringify({ webhook_url: webhookUrl }),
   });
   if (!res.ok) {
@@ -147,7 +168,10 @@ export async function connectBitrix24(webhookUrl: string): Promise<ConnectionRes
 export async function testBitrix24Connection(webhookUrl?: string): Promise<{ provider: string; connected: boolean; reason: string }> {
   const res = await fetch(`${API_BASE}/connections/bitrix24/test`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
     body: JSON.stringify(webhookUrl ? { webhook_url: webhookUrl } : {}),
   });
   if (!res.ok) {
@@ -160,7 +184,10 @@ export async function testBitrix24Connection(webhookUrl?: string): Promise<{ pro
 export async function connectHubSpot(accessToken: string): Promise<ConnectionResponse> {
   const res = await fetch(`${API_BASE}/connections/hubspot`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
     body: JSON.stringify({ access_token: accessToken }),
   });
   if (!res.ok) {
@@ -173,7 +200,10 @@ export async function connectHubSpot(accessToken: string): Promise<ConnectionRes
 export async function testHubSpotConnection(accessToken?: string): Promise<{ provider: string; connected: boolean; reason: string }> {
   const res = await fetch(`${API_BASE}/connections/hubspot/test`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
     body: JSON.stringify(accessToken ? { access_token: accessToken } : {}),
   });
   if (!res.ok) {
@@ -184,7 +214,7 @@ export async function testHubSpotConnection(accessToken?: string): Promise<{ pro
 }
 
 export async function getConnections(): Promise<ConnectionListResponse> {
-  const res = await fetch(`${API_BASE}/connections`);
+  const res = await fetch(`${API_BASE}/connections`, { headers: authHeaders() });
   if (!res.ok) {
     // Graceful for stub/demo
     return { connections: [] };
@@ -220,7 +250,7 @@ export interface MemoryProfileResponse {
 }
 
 export async function getMemoryProfile(): Promise<MemoryProfileResponse> {
-  const res = await fetch(`${API_BASE}/memory/profile`);
+  const res = await fetch(`${API_BASE}/memory/profile`, { headers: authHeaders() });
   if (!res.ok) {
     // Graceful for stub/demo without backend
     return {
@@ -239,7 +269,10 @@ export async function getMemoryProfile(): Promise<MemoryProfileResponse> {
 export async function saveMemoryProfile(profile: MemoryProfileRequest): Promise<MemoryProfileResponse> {
   const res = await fetch(`${API_BASE}/memory/profile`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
     body: JSON.stringify(profile),
   });
   if (!res.ok) {
@@ -278,7 +311,7 @@ export interface UsageHistoryResponse {
 }
 
 export async function getUsageSummary(): Promise<UsageSummaryResponse> {
-  const res = await fetch(`${API_BASE}/usage/summary`);
+  const res = await fetch(`${API_BASE}/usage/summary`, { headers: authHeaders() });
   if (!res.ok) {
     // Graceful for stub/demo without backend
     return {
@@ -295,7 +328,7 @@ export async function getUsageSummary(): Promise<UsageSummaryResponse> {
 }
 
 export async function getUsageHistory(limit = 50): Promise<UsageHistoryResponse> {
-  const res = await fetch(`${API_BASE}/usage/history?limit=${limit}`);
+  const res = await fetch(`${API_BASE}/usage/history?limit=${limit}`, { headers: authHeaders() });
   if (!res.ok) {
     // Graceful for stub/demo without backend
     return {

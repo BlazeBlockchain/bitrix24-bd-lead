@@ -12,7 +12,7 @@ import {
  * These are injected into the LLM for personalized lead enrichment.
  */
 export const MemoryProfile: React.FC = () => {
-  const { isLoggedIn, login } = useAppStore();
+  const { isLoggedIn } = useAppStore();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -55,7 +55,7 @@ export const MemoryProfile: React.FC = () => {
 
   const handleSave = async () => {
     if (!isLoggedIn) {
-      login();
+      window.location.href = '/login';
       return;
     }
 
@@ -117,7 +117,7 @@ export const MemoryProfile: React.FC = () => {
         <h1>Memory Profile</h1>
         <div className="card">
           <p>Please sign in to customize your memory profile.</p>
-          <button onClick={login}>Sign in (stub)</button>
+          <button onClick={() => window.location.href = '/login'}>Sign in with Google</button>
         </div>
       </div>
     );

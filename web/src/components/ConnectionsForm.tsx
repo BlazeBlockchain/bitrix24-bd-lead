@@ -17,7 +17,7 @@ import {
  * State: stored connections fetched from backend + local input for new connections.
  */
 export const ConnectionsForm: React.FC = () => {
-  const { currentProvider, setProvider, demoToken, setDemoToken, isLoggedIn, login } = useAppStore();
+  const { currentProvider, setProvider, demoToken, setDemoToken, isLoggedIn } = useAppStore();
 
   const [connections, setConnections] = useState<ConnectionResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +44,7 @@ export const ConnectionsForm: React.FC = () => {
 
   const handleConnect = async () => {
     if (!isLoggedIn) {
-      login();
+      window.location.href = '/login';
       return;
     }
 
@@ -80,7 +80,7 @@ export const ConnectionsForm: React.FC = () => {
 
   const handleTest = async () => {
     if (!isLoggedIn) {
-      login();
+      window.location.href = '/login';
       return;
     }
 

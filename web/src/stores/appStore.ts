@@ -1,10 +1,11 @@
 /**
- * Global app state (Zustand) for web skeleton (T011+).
- * Stub auth (no real JWT), demo CRM selection, local history, last result.
- * Per ARCHITECTURE: Zustand for state. Mirrored patterns for stores.
+ * Global app state (Zustand) for web.
+ * Real Google OAuth + JWT auth (per review Tier 1).
  */
 
 import { create } from 'zustand';
+import type { AuthUser } from '../api/auth';
+import { clearStoredAuth } from '../api/auth';
 
 export type Provider = 'bitrix24' | 'hubspot';
 
@@ -23,10 +24,11 @@ export interface PushHistoryItem {
 }
 
 interface AppState {
-  // Auth stub
+  // Real auth (Google OAuth + JWT)
   user: User | null;
+  accessToken: string | null;
   isLoggedIn: boolean;
-  login: () => void;
+  setAuthFromToken: (token: string, authUser: AuthUser) => void;
   logout: () => void;
 
   // Demo connections / provider selection (stub for T012)
@@ -73,12 +75,21 @@ const defaultDraft = {
 
 export const useAppStore = create<AppState>((set) => ({
   user: null,
+  accessToken: null,
   isLoggedIn: false,
-  login: () => set({
+  setAuthFromToken: (token: string, authUser: AuthUser) => set({
     isLoggedIn: true,
-    user: { id: 'demo-user', name: 'Demo BD Rep', email: 'demo@bd.example' }
+    accessToken: token,
+    user: {
+      id: authUser.id,
+      name: authUser.display_name,
+      email: authUser.email,
+    },
   }),
-  logout: () => set({ isLoggedIn: false, user: null, lastPushResult: null }),
+  logout: () => {
+    clearStoredAuth();
+    set({ isLoggedIn: false, accessToken: null, user: null, lastPushResult: null });
+  },
 
   currentProvider: 'bitrix24',
   demoToken: '',
