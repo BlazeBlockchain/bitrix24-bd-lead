@@ -6,9 +6,16 @@ build/
 *.tsbuildinfo
 
 # Environment & secrets
+# NOTE: real env files must never be committed — only the *.example templates.
+# docker-compose.staging.yml expects a .env.staging holding staging DB creds +
+# ENCRYPTION_KEK (which decrypts the BD Lead Research skill), so it is ignored here.
 .env
 .env.local
 .env.*.local
+.env.staging
+.env.production
+!.env.example
+!.env.staging.example
 *.pem
 *.key
 
