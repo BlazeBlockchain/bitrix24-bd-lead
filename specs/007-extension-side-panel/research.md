@@ -106,6 +106,44 @@ permission) throw on `executeScript`; catch and report "can't read this page" wh
 of the panel functional (spec edge case 1). If every heuristic misses, change nothing and say so
 (edge case 2).
 
+### R-004a: `activeTab` is NOT sufficient from a side panel (corrected during implementation)
+
+The original decision above assumed `activeTab` would cover the injection. **It does not**, and this
+was caught by driving a real browser rather than by reading the docs.
+
+Chrome grants `activeTab`'s host access only when the user invokes the extension through the toolbar
+**action**, a **context-menu** item, a **keyboard shortcut**, or the omnibox. A click on a button
+*inside* the side panel is none of those. Verified empirically: `chrome.permissions.getAll()` reports
+`activeTab` as held, yet `executeScript` from the panel fails with
+
+> Cannot access contents of the page. Extension manifest must request permission to access the
+> respective host.
+
+Worse, without host access `chrome.tabs.query()` returns tab objects whose `url` is `undefined`, so
+the extension cannot even tell which origin to ask for.
+
+**Revised decision**: request the origin **on demand**.
+- Add `"tabs"` to `permissions` — this is what makes `tab.url` readable so an origin pattern can be
+  derived at all.
+- Add `optional_host_permissions: ["http://*/*", "https://*/*"]` — optional, so it produces **no
+  install-time warning** and no blanket grant.
+- On the capture click: derive `scheme://host/*`, check `chrome.permissions.contains()`, and call
+  `chrome.permissions.request()` only if needed. The click is a live user gesture, which
+  `permissions.request()` requires.
+- Declining yields a distinct `permission` error class, not a silent failure.
+
+The user therefore grants **one site at a time**, with an explicit Chrome prompt, only when they
+press the button — which is narrower than the `<all_urls>` host permission the naive fix would need
+(NFR-004 holds).
+
+**Alternatives considered**: routing capture through the context menu or keyboard shortcut, both of
+which *do* grant `activeTab` — rejected because the discoverable affordance belongs in the panel
+next to the form; and a static `<all_urls>` host permission — rejected for the scary install warning
+and for granting far more than the feature needs.
+
+Note that URL classification happens *before* any permission request: non-http(s) schemes and the
+Chrome Web Store are refused outright, since Chrome will never permit injection there.
+
 **Merge policy** (FR-007): prefill only empty fields by default. If fields already hold values, show
 a non-destructive confirm listing what would be overwritten.
 

@@ -32,6 +32,13 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+
+  /* Must be set EXPLICITLY, not left to inherit from :root.
+     Chrome's user-agent stylesheet for extension pages shrinks body text to 0.75em,
+     so a body that only inherits computes to 11.25px even though :root says 15px —
+     reintroducing exactly the sub-12px text this feature exists to remove (NFR-008).
+     Verified in a real browser: html=15px, body=11.25px before this rule. */
+  font: 15px/1.5 var(--font-sans);
 }
 
 /* Buttons */

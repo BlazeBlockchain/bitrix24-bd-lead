@@ -9,6 +9,7 @@
 const DOM = {
   authStatus: document.getElementById('authStatus'),
   authText: document.getElementById('authText'),
+  versionLabel: document.getElementById('versionLabel'),
   signInBtn: document.getElementById('signInBtn'),
   signOutBtn: document.getElementById('signOutBtn'),
   authMsg: document.getElementById('authMsg'),
@@ -195,6 +196,10 @@ async function init() {
 
   // Update API base display
   DOM.apiBaseDisplay.textContent = `API: ${API_BASE}`;
+
+  // Version comes from the manifest (generated from the root VERSION file by
+  // scripts/sync_versions.py), so it never needs hand-editing and cannot go stale.
+  DOM.versionLabel.textContent = `BD Lead AI v${chrome.runtime.getManifest().version}`;
 
   // Set up event listeners
   DOM.signInBtn.addEventListener('click', handleSignIn);

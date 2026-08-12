@@ -111,9 +111,20 @@ than carried forward.
 | `sidePanel` | required to declare/open the panel | none exists |
 | `identity` | `launchWebAuthFlow` for Google sign-in | none exists |
 | `scripting` | on-demand extraction from the active tab | content script would need broad host access |
+| `contextMenus` | "Open BD Lead panel" entry (also a valid gesture source) | skipping the menu entirely |
+| `tabs` | read `tab.url` to derive which origin to request for capture | none — without it `tab.url` is `undefined` |
 
-`activeTab` and `storage` are already present. **No new `host_permissions`** — notably no
-`<all_urls>`; capture rides on `activeTab`'s gesture-scoped grant (NFR-004).
+`activeTab` and `storage` were already present. **No new static `host_permissions`** — notably no
+`<all_urls>`.
+
+Capture uses `optional_host_permissions: ["http://*/*", "https://*/*"]`, requested **one origin at a
+time** when the user presses the capture button. Optional permissions produce no install-time
+warning and no blanket grant, so NFR-004 holds.
+
+This replaced the original assumption that `activeTab` alone would cover capture. It does not: Chrome
+grants `activeTab` host access only via the toolbar action, a context menu, a keyboard shortcut, or
+the omnibox — never from a button inside the side panel. Caught by driving a real browser; see
+research R-004a.
 
 ## Constitution Check
 

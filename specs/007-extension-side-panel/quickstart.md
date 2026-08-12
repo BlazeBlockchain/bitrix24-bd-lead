@@ -89,7 +89,13 @@ returns **501** and sign-in cannot work.
 
 ### Capture, generate, push
 8. Visit a prospect's page; optionally select a sentence describing a signal
-9. Click **Grab from this page** → company / signal / source prefill, all editable
+9. Click **Grab from this page**. The first time you use it on a given site, Chrome prompts to let
+   the extension read that site — accept it. The grant is **per-origin** and remembered, so you are
+   asked once per site, not once per capture. Then company / signal / source prefill, all editable.
+
+   (Why the prompt: Chrome grants `activeTab` only when you invoke the extension from the toolbar
+   icon, a context menu, or a keyboard shortcut — never from a button inside the side panel. So the
+   extension asks for that one origin on demand rather than requesting all sites up front.)
 10. Fill contact and role, choose a provider, click **Generate with AI**
 11. Confirm the preview shows the snapshot, the opener, and **three** follow-ups with rationale
 12. Click **Push to CRM** → success reports the contact and deal ids
@@ -118,6 +124,7 @@ Neither is touched by this feature — they are the guard that it stayed inside 
 | Sign-in returns 401 `Invalid Google ID token` | `aud` mismatch — wrong client ID in `config.js` | use the web app's client ID |
 | Generate returns 401 | not signed in; the DEBUG stub fallback no longer exists | sign in |
 | **Grab from this page** fails | `chrome://`, Web Store, or PDF page | expected; try a normal page |
+| Capture says permission was declined | the per-site Chrome prompt was dismissed | click it again and accept, or revoke/re-grant under `chrome://extensions` → Details → Site access |
 | Panel is blank after edits | stale panel | close and reopen; reload the extension card |
 
 ## Do not

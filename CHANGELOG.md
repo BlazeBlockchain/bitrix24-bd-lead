@@ -36,7 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clears the stored client ID.
 - Preview rendering rebuilt with DOM construction instead of `innerHTML` string concatenation plus a
   manual escape helper, so escaping cannot be forgotten on a future field.
-- New permissions: `sidePanel`, `identity`, `scripting`, `contextMenus`. **No new host permissions.**
+- New permissions: `sidePanel`, `identity`, `scripting`, `contextMenus`, `tabs`. **No new static host
+  permissions** — page capture requests one origin at a time via `optional_host_permissions`, which
+  produces no install-time warning. (`activeTab` alone is not enough: Chrome grants its host access
+  only from the toolbar action, a context menu, or a keyboard shortcut — never from a button inside
+  the side panel.)
 - Extension body text raised to the dashboard's 15px base; the old 10-11px preview text is gone.
 
 ### Fixed

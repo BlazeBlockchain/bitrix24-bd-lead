@@ -18,6 +18,7 @@ const DOM = {
   openOptions: document.getElementById('openOptions'),
   openWeb: document.getElementById('openWeb'),
   connectionsLink: document.getElementById('connectionsLink'),
+  versionLabel: document.getElementById('versionLabel'),
 };
 
 /**
@@ -99,6 +100,12 @@ async function updateAuthStatus() {
 function init() {
   // Check if side panel is supported
   checkPanelSupport();
+
+  // Read the version from the manifest rather than hardcoding it in the HTML.
+  // The manifest version is generated from the root VERSION file by
+  // scripts/sync_versions.py, so reading it here keeps this label correct
+  // through every `make bump-*` with nothing to hand-edit.
+  DOM.versionLabel.textContent = `v${chrome.runtime.getManifest().version}`;
 
   // Set up event listeners
   DOM.openPanelBtn.addEventListener('click', openSidePanel);

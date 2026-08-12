@@ -7,6 +7,7 @@
   "permissions": [
     "storage",
     "activeTab",
+    "tabs",
     "sidePanel",
     "identity",
     "scripting",
@@ -15,6 +16,10 @@
   "host_permissions": [
     "http://localhost:8000/*",
     "https://api.bdlead.app/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "action": {
     "default_popup": "popup.html",

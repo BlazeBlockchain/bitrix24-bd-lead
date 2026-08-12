@@ -116,6 +116,31 @@ function pageExtractor() {
 }
 
 /**
+ * Build an origin match pattern ("https://example.com/*") for a tab URL, or return
+ * null when the URL is one Chrome will never let an extension read.
+ *
+ * Only http/https are permissible: chrome://, chrome-extension://, devtools://,
+ * about:, file:// and the Chrome Web Store are all refused by the browser, and
+ * tab.url is undefined for tabs we hold no permission over.
+ */
+function originPatternFor(url) {
+  if (!url) return null;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (e) {
+    return null;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  // Chrome refuses injection into its own Web Store regardless of granted permissions.
+  if (/(^|\.)chromewebstore\.google\.com$/.test(parsed.hostname)) return null;
+  if (/(^|\.)chrome\.google\.com$/.test(parsed.hostname) && parsed.pathname.startsWith('/webstore')) {
+    return null;
+  }
+  return `${parsed.protocol}//${parsed.hostname}/*`;
+}
+
+/**
  * Global BDCapture object exposing page capture and merge logic.
  */
 const BDCapture = {
@@ -137,6 +162,38 @@ const BDCapture = {
     }
 
     const tab = tabs[0];
+
+    // Ensure we may actually read this page.
+    //
+    // "activeTab" alone is NOT enough here. Chrome grants activeTab's host access only
+    // when the user invokes the extension through the toolbar action, a context-menu
+    // item, or a keyboard shortcut. A click on a button INSIDE the side panel is not
+    // one of those, so executeScript fails with "Extension manifest must request
+    // permission to access the respective host" — verified in a real browser.
+    //
+    // So we request the origin on demand instead, via optional_host_permissions. This
+    // keeps the install-time permission set narrow (NFR-004): the user grants one site
+    // at a time, with an explicit Chrome prompt, only when they press the capture button.
+    const origin = originPatternFor(tab.url);
+    if (!origin) {
+      const e = new Error("Can't read this page (unsupported or restricted URL)");
+      e.class = 'restricted';
+      throw e;
+    }
+
+    const alreadyGranted = await chrome.permissions.contains({ origins: [origin] });
+    if (!alreadyGranted) {
+      // Must be called while the user's click gesture is still live.
+      const granted = await chrome.permissions.request({ origins: [origin] });
+      if (!granted) {
+        const e = new Error(
+          `Permission to read ${new URL(tab.url).hostname} was declined. ` +
+            'Grant it when prompted, or fill the form in manually.'
+        );
+        e.class = 'permission';
+        throw e;
+      }
+    }
 
     // Inject the extractor function
     try {

@@ -399,7 +399,9 @@ function showErrorStatus(errorClass, message) {
       `${message} — check that your backend is running at ${API_BASE}`
     );
   } else {
-    // 'input', 'service', 'restricted', or other
+    // 'input', 'service', 'restricted', 'permission', or other.
+    // These all carry a self-explanatory message from their source, so they render
+    // as-is rather than getting extra UI affordances bolted on.
     showStatus('error', message);
   }
 }
