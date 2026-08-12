@@ -1,6 +1,6 @@
 {
   "name": "bitrix24-bd-lead",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Bitrix24 MCP server — BD Lead creation tool for proprietary BD Lead Research Engine",
   "type": "module",
   "bin": {

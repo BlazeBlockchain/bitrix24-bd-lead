@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-12
+
+### Changed
+- Moved the Changelog link out of the header nav into the footer, placed after the app version
+- Decluttered the footer: removed the duplicate "BD Lead" brand (already the header logo), the
+  "Google OAuth" implementation-status note, and a placeholder "docs" link that pointed at the
+  generic github.com homepage instead of any real documentation
+
+### Removed
+- Per-task `REVIEW_FOR_*.md` / `TEST_REPORT_*.md` build artifacts under `specs/004-ai-bd-assistant/`
+  — superseded by `docs/BUILD_COORDINATION.md` and the per-task notes in `tasks.md`, and partly
+  stale (several described worktree code that never merged). Recoverable from git history.
+
+### Fixed
+- Stopped tracking 25 `.pyc` build artifacts that `.gitignore` already declared ignored, which kept
+  the working tree permanently dirty
+- Added `.env.staging` / `.env.production` to `.gitignore` (with `!*.example` negations) — the
+  staging compose override expects a `.env.staging` holding DB credentials and `ENCRYPTION_KEK`,
+  which could previously have been committed by accident
+
+### Added
+- Real PNG extension icons (16/48/128), replacing an inline SVG data URI that the Chrome Web Store
+  does not accept and that provided no larger sizes
+
+
 ## [0.1.2] - 2026-07-14
 
 ### Added
