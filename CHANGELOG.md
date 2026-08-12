@@ -44,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extension body text raised to the dashboard's 15px base; the old 10-11px preview text is gone.
 
 ### Fixed
+- **The backend could never reach a real LLM under Docker.** `docker-compose.yml` passed no
+  `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` to the backend service, so `generate_enrichment` fell
+  through Gemini → Claude → `_mock_generate` and every preview was `model_used: "mock-llm"`,
+  regardless of what was set in `.env`. Both SDKs were installed in the image; only the env
+  passthrough was missing. Also passes `GEMINI_MODEL`, `ANTHROPIC_MODEL`, and
+  `LLM_DAILY_BUDGET_CENTS` so they are tunable without a rebuild.
 - **The extension could not authenticate at all.** `get_current_user_api` dropped its DEBUG stub-user
   fallback and now returns 401 whenever the `Authorization` header is absent, but `popup.js` still
   documented that fallback as live and treated the token as optional — so every Generate and Push
