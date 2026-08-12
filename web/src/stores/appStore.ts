@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import type { AuthUser } from '../api/auth';
 import { clearStoredAuth } from '../api/auth';
+import { setUnauthorizedHandler } from '../api/client';
 
 export type Provider = 'bitrix24' | 'hubspot';
 
@@ -117,3 +118,21 @@ export const useAppStore = create<AppState>((set) => ({
   serverHistory: [],
   setServerHistory: (items) => set({ serverHistory: items }),
 }));
+
+/**
+ * Send the user to sign-in when the API rejects our token.
+ *
+ * Without this, an expired JWT (they last 60 minutes) surfaced as empty data on
+ * every read screen — Connections showed "No connections stored yet" even though
+ * the credentials were still stored server-side, and History and Usage looked
+ * like a brand-new account. Registered here rather than in a component so it is
+ * wired exactly once, before any screen mounts.
+ *
+ * client.ts does not import this store, so this direction of the dependency is
+ * safe and introduces no cycle.
+ */
+setUnauthorizedHandler(() => {
+  if (useAppStore.getState().isLoggedIn) {
+    useAppStore.getState().logout();
+  }
+});

@@ -24,6 +24,43 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/** An API failure that carries the HTTP status, so callers can tell 401 from 500. */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+let onUnauthorized: (() => void) | null = null;
+
+/**
+ * Register what should happen when the API rejects our token (401).
+ * appStore wires this to logout() so an expired session sends the user to
+ * sign-in instead of leaving them on a dashboard full of empty states.
+ */
+export function setUnauthorizedHandler(fn: () => void): void {
+  onUnauthorized = fn;
+}
+
+/**
+ * Throw on 401 rather than letting a caller degrade to empty data.
+ *
+ * Several read endpoints below return an empty payload when the response is not
+ * ok, which is a reasonable degradation when the backend is down but is actively
+ * misleading for 401: an expired session rendered as "no connections stored yet",
+ * an empty History, and zeroed Usage — indistinguishable from a new account.
+ * JWTs here last 60 minutes, so this is the normal state of any tab left open.
+ */
+function rejectIfUnauthorized(res: Response): void {
+  if (res.status === 401) {
+    onUnauthorized?.();
+    throw new ApiError('Your session expired. Please sign in again.', 401);
+  }
+}
+
 export interface LeadPushInput {
   company_name: string;
   deal_name: string;
@@ -93,6 +130,7 @@ export async function pushLead(
 export async function getHistory(limit = 20): Promise<any[]> {
   const res = await fetch(`${API_BASE}/leads/history?limit=${limit}`, { headers: authHeaders() });
   if (!res.ok) {
+    rejectIfUnauthorized(res);
     // graceful for stub/demo without rows or backend
     return [];
   }
@@ -216,6 +254,7 @@ export async function testHubSpotConnection(accessToken?: string): Promise<{ pro
 export async function getConnections(): Promise<ConnectionListResponse> {
   const res = await fetch(`${API_BASE}/connections`, { headers: authHeaders() });
   if (!res.ok) {
+    rejectIfUnauthorized(res);
     // Graceful for stub/demo
     return { connections: [] };
   }
@@ -252,6 +291,7 @@ export interface MemoryProfileResponse {
 export async function getMemoryProfile(): Promise<MemoryProfileResponse> {
   const res = await fetch(`${API_BASE}/memory/profile`, { headers: authHeaders() });
   if (!res.ok) {
+    rejectIfUnauthorized(res);
     // Graceful for stub/demo without backend
     return {
       id: '',
@@ -313,6 +353,7 @@ export interface UsageHistoryResponse {
 export async function getUsageSummary(): Promise<UsageSummaryResponse> {
   const res = await fetch(`${API_BASE}/usage/summary`, { headers: authHeaders() });
   if (!res.ok) {
+    rejectIfUnauthorized(res);
     // Graceful for stub/demo without backend
     return {
       total_calls: 0,
@@ -330,6 +371,7 @@ export async function getUsageSummary(): Promise<UsageSummaryResponse> {
 export async function getUsageHistory(limit = 50): Promise<UsageHistoryResponse> {
   const res = await fetch(`${API_BASE}/usage/history?limit=${limit}`, { headers: authHeaders() });
   if (!res.ok) {
+    rejectIfUnauthorized(res);
     // Graceful for stub/demo without backend
     return {
       items: [],

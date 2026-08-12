@@ -23,6 +23,7 @@ export const ConnectionsForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testLoading, setTestLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load stored connections on mount
   useEffect(() => {
@@ -35,10 +36,14 @@ export const ConnectionsForm: React.FC = () => {
     try {
       const data: ConnectionListResponse = await getConnections();
       setConnections(data.connections || []);
+      setLoadError(null);
     } catch (err) {
-      // Graceful: if backend not available, just show empty
+      // Distinguish "the list is genuinely empty" from "we could not read it".
+      // Rendering a failed read as an empty list previously made an expired
+      // session look like a lost CRM connection.
       console.debug('Failed to load connections:', err);
       setConnections([]);
+      setLoadError(err instanceof Error ? err.message : 'Could not load your connections.');
     }
   };
 
@@ -217,8 +222,12 @@ export const ConnectionsForm: React.FC = () => {
       )}
 
       <div className="card">
-        <h3>All Connections ({connections.length})</h3>
-        {connections.length === 0 ? (
+        <h3>All Connections{loadError ? '' : ` (${connections.length})`}</h3>
+        {loadError ? (
+          <p style={{ color: 'var(--danger)' }}>
+            {loadError} Your stored credentials are safe — this page just could not read them.
+          </p>
+        ) : connections.length === 0 ? (
           <p style={{ color: 'var(--muted)' }}>No connections stored yet. Add one above.</p>
         ) : (
           <ul style={{ fontSize: 12, lineHeight: 1.6 }}>
