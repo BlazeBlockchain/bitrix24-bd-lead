@@ -1,18 +1,21 @@
 /**
  * Options page script for BD Lead AI extension.
- * Manages authentication, CRM settings, and links to web dashboard.
+ * Manages Google OAuth sign-in, client ID configuration, CRM settings, and links.
  */
 
-// DOM elements
+/**
+ * DOM elements cache
+ */
 const DOM = {
   authStatus: document.getElementById('authStatus'),
   authText: document.getElementById('authText'),
-  tokenDisplay: document.getElementById('tokenDisplay'),
-  viewTokenBtn: document.getElementById('viewTokenBtn'),
+  signInBtn: document.getElementById('signInBtn'),
   signOutBtn: document.getElementById('signOutBtn'),
   authMsg: document.getElementById('authMsg'),
-  tokenInput: document.getElementById('tokenInput'),
-  saveTokenBtn: document.getElementById('saveTokenBtn'),
+  googleClientId: document.getElementById('googleClientId'),
+  clientIdMsg: document.getElementById('clientIdMsg'),
+  redirectUri: document.getElementById('redirectUri'),
+  copyRedirectBtn: document.getElementById('copyRedirectBtn'),
   defaultProvider: document.getElementById('defaultProvider'),
   providerMsg: document.getElementById('providerMsg'),
   openConnectionsBtn: document.getElementById('openConnectionsBtn'),
@@ -23,10 +26,8 @@ const DOM = {
   apiBaseDisplay: document.getElementById('apiBaseDisplay'),
 };
 
-let tokenVisible = false;
-
 /**
- * Show a status message
+ * Show a status message with auto-hide
  */
 function showMsg(elementId, message, type = 'success') {
   const element = document.getElementById(elementId);
@@ -43,88 +44,86 @@ function showMsg(elementId, message, type = 'success') {
  * Load and display authentication status
  */
 async function loadAuthStatus() {
-  const data = await chrome.storage.local.get([STORAGE_KEYS.JWT]);
-  const jwt = data[STORAGE_KEYS.JWT];
+  const session = await BDAuth.getSession();
 
-  if (jwt) {
+  if (session.state === 'valid' && session.user) {
     DOM.authStatus.className = 'auth-status authenticated';
-    DOM.authText.textContent = '✓ Authenticated';
-    DOM.viewTokenBtn.style.display = 'inline-block';
-    DOM.signOutBtn.style.display = 'inline-block';
-
-    // Try to parse JWT and show user info (basic)
-    try {
-      const parts = jwt.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1]));
-        if (payload.sub) {
-          DOM.authText.textContent = `✓ Authenticated as ${payload.sub.split('@')[0] || 'user'}`;
-        }
-      }
-    } catch (e) {
-      // Ignore parsing errors
-    }
+    DOM.authText.textContent = `✓ Signed in as ${session.user.email}`;
+    DOM.signInBtn.classList.add('hidden');
+    DOM.signOutBtn.classList.remove('hidden');
   } else {
     DOM.authStatus.className = 'auth-status unauthenticated';
-    DOM.authText.textContent = '✗ Not authenticated. Sign in via web dashboard.';
-    DOM.viewTokenBtn.style.display = 'none';
-    DOM.signOutBtn.style.display = 'none';
+    DOM.authText.textContent = '✗ Not signed in';
+    DOM.signInBtn.classList.remove('hidden');
+    DOM.signOutBtn.classList.add('hidden');
   }
 }
 
 /**
- * Toggle token visibility
+ * Handle sign-in with Google
  */
-async function toggleTokenVisibility() {
-  const data = await chrome.storage.local.get([STORAGE_KEYS.JWT]);
-  const jwt = data[STORAGE_KEYS.JWT];
-
-  if (!jwt) {
-    showMsg('authMsg', 'No token stored', 'error');
-    return;
-  }
-
-  tokenVisible = !tokenVisible;
-
-  if (tokenVisible) {
-    DOM.tokenDisplay.textContent = jwt;
-    DOM.tokenDisplay.classList.remove('hidden');
-    DOM.viewTokenBtn.textContent = 'Hide Token';
-  } else {
-    DOM.tokenDisplay.classList.add('hidden');
-    DOM.viewTokenBtn.textContent = 'View JWT Token';
+async function handleSignIn() {
+  DOM.signInBtn.disabled = true;
+  try {
+    await BDAuth.signIn();
+    await loadAuthStatus();
+    showMsg('authMsg', 'Signed in successfully', 'success');
+  } catch (err) {
+    let message = err.message || 'Sign-in failed';
+    if (err.class === 'setup') {
+      message = 'Google OAuth not configured. Please set your Client ID first.';
+    }
+    showMsg('authMsg', message, 'error');
+  } finally {
+    DOM.signInBtn.disabled = false;
   }
 }
 
 /**
- * Sign out and clear token
+ * Handle sign-out
  */
-async function signOut() {
-  if (confirm('Clear your authentication token? You will need to sign in again.')) {
-    await chrome.storage.local.remove([STORAGE_KEYS.JWT]);
-    tokenVisible = false;
-    DOM.tokenDisplay.classList.add('hidden');
-    DOM.viewTokenBtn.textContent = 'View JWT Token';
-    loadAuthStatus();
-    showMsg('authMsg', 'Signed out. Please authenticate via the web dashboard.', 'success');
+async function handleSignOut() {
+  if (confirm('Sign out? You will need to sign in again to use the extension.')) {
+    await BDAuth.signOut();
+    await loadAuthStatus();
+    showMsg('authMsg', 'Signed out successfully', 'success');
   }
 }
 
 /**
- * Save a manually-pasted JWT/demo token (T017: "stored JWT or token").
- * There is no real sign-in flow yet (T005 OAuth is still a stub across the
- * whole project), so this is the only way to populate STORAGE_KEYS.JWT today.
+ * Load Google Client ID from storage
  */
-async function saveToken() {
-  const value = DOM.tokenInput.value.trim();
-  if (!value) {
-    showMsg('authMsg', 'Enter a token first', 'error');
-    return;
-  }
-  await chrome.storage.local.set({ [STORAGE_KEYS.JWT]: value });
-  DOM.tokenInput.value = '';
-  await loadAuthStatus();
-  showMsg('authMsg', 'Token saved', 'success');
+async function loadGoogleClientId() {
+  const data = await chrome.storage.local.get([STORAGE_KEYS.GOOGLE_CLIENT_ID]);
+  const clientId = data[STORAGE_KEYS.GOOGLE_CLIENT_ID] || '';
+  DOM.googleClientId.value = clientId;
+}
+
+/**
+ * Save Google Client ID to storage
+ */
+async function saveGoogleClientId() {
+  const clientId = DOM.googleClientId.value.trim();
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.GOOGLE_CLIENT_ID]: clientId,
+  });
+  showMsg('clientIdMsg', clientId ? 'Client ID saved' : 'Client ID cleared', 'success');
+}
+
+/**
+ * Display the extension's redirect URI and set up copy button
+ */
+async function setupRedirectUri() {
+  const redirectUri = chrome.identity.getRedirectURL();
+  DOM.redirectUri.textContent = redirectUri;
+
+  DOM.copyRedirectBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(redirectUri).then(() => {
+      showMsg('clientIdMsg', 'Redirect URI copied to clipboard', 'success');
+    }).catch(() => {
+      showMsg('clientIdMsg', 'Failed to copy redirect URI', 'error');
+    });
+  });
 }
 
 /**
@@ -172,13 +171,14 @@ function openHistory() {
  * Clear all stored data
  */
 async function clearAllData() {
-  if (confirm('Clear all stored data? This includes your token, settings, and preferences. This action cannot be undone.')) {
+  if (confirm(
+    'Clear all stored data? This will remove your authentication token, CRM preferences, and Google Client ID configuration. ' +
+    'You will need to sign in and reconfigure everything. This action cannot be undone.'
+  )) {
     await chrome.storage.local.clear();
-    tokenVisible = false;
-    DOM.tokenDisplay.classList.add('hidden');
-    DOM.viewTokenBtn.textContent = 'View JWT Token';
-    loadAuthStatus();
+    await loadAuthStatus();
     DOM.defaultProvider.value = DEFAULT_PROVIDER;
+    DOM.googleClientId.value = '';
     showMsg('clearMsg', 'All data cleared', 'success');
   }
 }
@@ -190,14 +190,16 @@ async function init() {
   // Load initial state
   await loadAuthStatus();
   await loadProvider();
+  await loadGoogleClientId();
+  await setupRedirectUri();
 
   // Update API base display
   DOM.apiBaseDisplay.textContent = `API: ${API_BASE}`;
 
   // Set up event listeners
-  DOM.viewTokenBtn.addEventListener('click', toggleTokenVisibility);
-  DOM.signOutBtn.addEventListener('click', signOut);
-  DOM.saveTokenBtn.addEventListener('click', saveToken);
+  DOM.signInBtn.addEventListener('click', handleSignIn);
+  DOM.signOutBtn.addEventListener('click', handleSignOut);
+  DOM.googleClientId.addEventListener('change', saveGoogleClientId);
   DOM.defaultProvider.addEventListener('change', saveProvider);
   DOM.openConnectionsBtn.addEventListener('click', openConnections);
   DOM.openDashboardBtn.addEventListener('click', openDashboard);
@@ -205,5 +207,7 @@ async function init() {
   DOM.clearDataBtn.addEventListener('click', clearAllData);
 }
 
-// Start when page loads
+/**
+ * Start when DOM is ready
+ */
 document.addEventListener('DOMContentLoaded', init);

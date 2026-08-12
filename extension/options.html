@@ -4,23 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BD Lead AI - Settings</title>
+  <link rel="stylesheet" href="tokens.css">
   <style>
-    :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface-2: #1c2330;
-      --border: #30363d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --accent: #f97316;
-      --accent-2: #38bdf8;
-      --accent-3: #4ade80;
-      --danger: #f87171;
-      --radius: 8px;
-      --font-sans: system-ui, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-
     * {
       box-sizing: border-box;
     }
@@ -28,9 +13,6 @@
     body {
       margin: 0;
       padding: 0;
-      font: 14px/1.6 var(--font-sans);
-      color: var(--text);
-      background: var(--bg);
     }
 
     .options-container {
@@ -111,6 +93,12 @@
       border-color: var(--accent);
     }
 
+    input:disabled {
+      background: var(--bg);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
     button {
       font: inherit;
       background: var(--accent);
@@ -171,6 +159,7 @@
       background: var(--surface-2);
       border-radius: var(--radius);
       font-size: 13px;
+      margin-bottom: 12px;
     }
 
     .auth-status.authenticated {
@@ -181,18 +170,26 @@
       color: var(--danger);
     }
 
-    .token-display {
+    .redirect-uri-box {
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 8px;
-      margin: 8px 0;
+      padding: 10px;
       font-family: var(--mono);
       font-size: 11px;
-      color: var(--muted);
+      color: var(--text);
       word-break: break-all;
-      max-height: 60px;
-      overflow: hidden;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+    }
+
+    .redirect-uri-box button {
+      padding: 4px 8px;
+      font-size: 11px;
+      flex-shrink: 0;
     }
 
     .link-button {
@@ -225,6 +222,16 @@
     .hidden {
       display: none;
     }
+
+    .auth-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .auth-buttons button {
+      flex: 1;
+    }
   </style>
 </head>
 <body>
@@ -236,24 +243,42 @@
 
     <!-- Authentication Section -->
     <div class="section">
-      <h2>Authentication</h2>
+      <h2>Sign In</h2>
       <div id="authStatus" class="auth-status unauthenticated">
-        <span id="authText">Not authenticated</span>
+        <span id="authText">Not signed in</span>
       </div>
-      <div id="tokenDisplay" class="token-display hidden"></div>
-      <button id="viewTokenBtn" class="secondary" style="margin-top: 8px;">View JWT Token</button>
-      <button id="signOutBtn" class="danger" style="margin-top: 8px;">Sign Out</button>
       <div id="authMsg" class="status-msg hidden"></div>
 
-      <div class="form-group" style="margin-top: 16px;">
-        <label for="tokenInput">Paste JWT / demo token</label>
-        <input type="text" id="tokenInput" placeholder="Paste token from web dashboard (optional in dev mode)">
+      <div class="auth-buttons">
+        <button id="signInBtn" class="secondary">Sign in with Google</button>
+        <button id="signOutBtn" class="secondary hidden">Sign Out</button>
       </div>
-      <button id="saveTokenBtn" class="secondary">Save Token</button>
-      <p style="margin-top: 8px;">
-        Note: the backend runs in DEBUG/demo mode by default and works without a token.
-        Real Google OAuth sign-in isn't wired up yet (T005); paste a token here once available.
+    </div>
+
+    <!-- Google Client ID Configuration -->
+    <div class="section">
+      <h2>Google OAuth Setup</h2>
+      <p>Configure your Google OAuth client ID to enable sign-in. This must match the client ID from your web app configuration.</p>
+
+      <div class="form-group">
+        <label for="googleClientId">Google Client ID</label>
+        <input type="text" id="googleClientId" placeholder="e.g., 123456789-abc...xyz.apps.googleusercontent.com">
+      </div>
+      <p style="font-size: 12px; color: var(--muted); margin: 0;">
+        Obtain this from <a href="https://console.cloud.google.com" target="_blank" style="color: var(--accent);">Google Cloud Console</a>.
       </p>
+
+      <div class="form-group" style="margin-top: 12px;">
+        <label>Authorized Redirect URI</label>
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 8px;">
+          Add this URI to your OAuth app configuration in Google Cloud Console:
+        </p>
+        <div class="redirect-uri-box">
+          <span id="redirectUri"></span>
+          <button id="copyRedirectBtn" class="secondary">Copy</button>
+        </div>
+      </div>
+      <div id="clientIdMsg" class="status-msg hidden"></div>
     </div>
 
     <!-- CRM Settings -->
@@ -298,7 +323,7 @@
     <!-- Advanced -->
     <div class="section">
       <h2>Advanced</h2>
-      <p>Clear all stored data and start fresh.</p>
+      <p>Clear all stored data and start fresh. This will clear your authentication token, settings, and Google Client ID configuration.</p>
       <button id="clearDataBtn" class="danger">Clear All Data</button>
       <div id="clearMsg" class="status-msg hidden"></div>
     </div>
@@ -311,6 +336,7 @@
   </div>
 
   <script src="config.js"></script>
+  <script src="auth.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

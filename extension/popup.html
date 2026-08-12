@@ -4,40 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BD Lead AI - Popup</title>
+  <link rel="stylesheet" href="tokens.css">
   <style>
-    :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface-2: #1c2330;
-      --border: #30363d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --accent: #f97316;
-      --accent-2: #38bdf8;
-      --accent-3: #4ade80;
-      --danger: #f87171;
-      --radius: 8px;
-      --font-sans: system-ui, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-
     * {
       box-sizing: border-box;
     }
 
     body {
-      width: 500px;
+      width: 320px;
       margin: 0;
       padding: 0;
-      font: 13px/1.5 var(--font-sans);
-      color: var(--text);
-      background: var(--bg);
     }
 
     .popup-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      min-height: 100vh;
     }
 
     .header {
@@ -48,6 +30,7 @@
       justify-content: space-between;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
     }
 
     .header-title {
@@ -74,176 +57,109 @@
 
     .content {
       flex: 1;
-      overflow-y: auto;
       padding: 16px;
       display: flex;
       flex-direction: column;
+      gap: 12px;
     }
 
-    .form-group {
-      margin-bottom: 12px;
-    }
-
-    label {
-      font-size: 11px;
-      color: var(--muted);
-      display: block;
-      margin-bottom: 4px;
-      font-weight: 500;
-    }
-
-    input, select, textarea {
-      font: inherit;
+    .status-section {
       background: var(--surface);
-      color: var(--text);
       border: 1px solid var(--border);
-      padding: 6px 8px;
       border-radius: var(--radius);
+      padding: 12px;
+      font-size: 13px;
+    }
+
+    .status-section h3 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+
+    .status-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .status-line:last-child {
+      margin-bottom: 0;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .status-dot.online {
+      background: var(--accent-3);
+    }
+
+    .status-dot.offline {
+      background: var(--danger);
+    }
+
+    .status-text {
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .status-text.muted {
+      color: var(--muted);
+    }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-primary {
       width: 100%;
-    }
-
-    input:focus, select:focus, textarea:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 50px;
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .buttons {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 12px;
-    }
-
-    button {
-      font: inherit;
+      padding: 10px;
       background: var(--accent);
       color: white;
       border: none;
-      padding: 8px 12px;
       border-radius: var(--radius);
-      cursor: pointer;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
     }
 
-    button:hover {
-      opacity: 0.9;
+    .btn-primary:hover {
+      background: #ea6317;
     }
 
-    button:disabled {
+    .btn-primary:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
 
-    button.secondary {
-      background: var(--surface-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
-    .preview {
-      margin-top: 16px;
-      padding: 12px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      display: none;
-    }
-
-    .preview.active {
-      display: block;
-    }
-
-    .preview h4 {
-      margin: 0 0 8px;
-      font-size: 12px;
-      color: var(--accent);
-    }
-
-    .preview-section {
-      margin-bottom: 10px;
-    }
-
-    .preview-section strong {
-      color: var(--text);
-      font-size: 12px;
-    }
-
-    .preview-section p {
-      margin: 4px 0 0;
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.4;
-    }
-
-    .task-item {
-      border-left: 3px solid var(--accent-3);
-      padding-left: 8px;
-      margin: 8px 0;
-      font-size: 11px;
-    }
-
-    .task-item strong {
-      color: var(--text);
-    }
-
-    .task-due {
-      color: var(--accent-3);
-      font-weight: 500;
-    }
-
-    .task-rationale {
-      color: var(--muted);
-      margin-top: 2px;
-      font-size: 10px;
-      line-height: 1.3;
-    }
-
-    .status {
-      padding: 8px;
-      border-radius: var(--radius);
-      font-size: 11px;
-      margin-top: 8px;
-    }
-
-    .status.loading {
-      background: var(--surface-2);
-      color: var(--accent-2);
-    }
-
-    .status.success {
-      background: rgba(74, 222, 128, 0.1);
-      color: var(--accent-3);
-      border: 1px solid var(--accent-3);
-    }
-
-    .status.error {
+    .info-box {
       background: rgba(248, 113, 113, 0.1);
-      color: var(--danger);
       border: 1px solid var(--danger);
-    }
-
-    .hidden {
-      display: none;
+      border-radius: var(--radius);
+      padding: 12px;
+      font-size: 12px;
+      color: var(--danger);
+      text-align: center;
     }
 
     .footer {
-      font-size: 10px;
+      font-size: 11px;
       color: var(--muted);
       padding: 8px 16px;
       border-top: 1px solid var(--border);
       text-align: center;
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -258,66 +174,48 @@
     </div>
 
     <div class="content">
-      <form id="leadForm">
-        <div class="form-group">
-          <label for="company_name">Company *</label>
-          <input type="text" id="company_name" name="company_name" placeholder="Acme Inc" required>
+      <!-- Main action -->
+      <div id="panelAvailable">
+        <button id="openPanelBtn" class="btn-primary">Open BD Lead panel</button>
+      </div>
+
+      <!-- Fallback when panel is not available -->
+      <div id="panelUnavailable" style="display: none;" class="info-box">
+        BD Lead side panel requires Chrome 116 or later.
+        <br><br>
+        <a id="dashboardLink" href="#" style="color: var(--accent); text-decoration: none;">Visit the web dashboard →</a>
+      </div>
+
+      <!-- Status section -->
+      <div class="status-section">
+        <h3>Status</h3>
+
+        <!-- API status -->
+        <div class="status-line">
+          <div class="status-dot" id="apiDot"></div>
+          <span class="status-text" id="apiText">Checking API...</span>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="contact_name">Contact *</label>
-            <input type="text" id="contact_name" name="contact_name" placeholder="Jane Smith" required>
-          </div>
-          <div class="form-group">
-            <label for="contact_role">Role *</label>
-            <input type="text" id="contact_role" name="contact_role" placeholder="VP Sales" required>
-          </div>
+        <!-- Auth status -->
+        <div class="status-line">
+          <div class="status-dot" id="authDot"></div>
+          <span class="status-text" id="authText">Checking session...</span>
         </div>
+      </div>
 
-        <div class="form-group">
-          <label for="signal">Signal / Trigger</label>
-          <input type="text" id="signal" name="signal" placeholder="Series B, new leadership...">
-        </div>
-
-        <div class="form-group">
-          <label for="pain_point">Pain point / Why now</label>
-          <input type="text" id="pain_point" name="pain_point">
-        </div>
-
-        <div class="form-group">
-          <label for="notes">Notes</label>
-          <textarea id="notes" name="notes" placeholder="Add context (bullets ok)"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="provider">CRM Provider</label>
-          <select id="provider" name="provider">
-            <option value="bitrix24">Bitrix24</option>
-            <option value="hubspot">HubSpot</option>
-          </select>
-        </div>
-
-        <div class="buttons">
-          <button type="button" id="generateBtn">Generate with AI</button>
-          <button type="button" id="pushBtn" class="secondary" disabled>Push to CRM</button>
-        </div>
-
-        <div id="status" class="status hidden"></div>
-      </form>
-
-      <div id="preview" class="preview">
-        <h4>AI Preview</h4>
-        <div id="previewContent"></div>
+      <!-- Quick links -->
+      <div class="button-group">
+        <a href="#" id="connectionsLink" style="padding: 8px; text-align: center; color: var(--accent); text-decoration: none; font-size: 12px;">📋 Manage connections</a>
       </div>
     </div>
 
     <div class="footer">
-      v0.1.0 | Connected to <span id="apiStatus">API</span>
+      v0.1.0
     </div>
   </div>
 
   <script src="config.js"></script>
+  <script src="auth.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

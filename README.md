@@ -23,6 +23,10 @@ Supported CRMs: **Bitrix24** (webhook) and **HubSpot** (OAuth). Auth: **Google O
 
 **Current status**: All P1 user stories are implemented end-to-end and verified running via `docker compose up -d --build` + `npm run dev` — Connections (real backend-stored, encrypted CRM credentials), Composer (real `/enrich` + `/push`), History, Usage tracking, Memory profile editor, Dashboard, and the browser extension are all real, working code (no stubs). See [tasks.md](./specs/004-ai-bd-assistant/tasks.md) and [BUILD_COORDINATION.md](./docs/BUILD_COORDINATION.md) for the full implementation log.
 
+> **Extension**: now a docked **Chrome side panel** (Chrome 116+) that stays open while you browse,
+> with the toolbar popup kept as a quick launcher. It signs in with Google via `chrome.identity`.
+> See [specs/007-extension-side-panel/](./specs/007-extension-side-panel/).
+
 ---
 
 ---
@@ -205,8 +209,11 @@ setup for local testing.
    ```
    Useful commands: `docker compose logs -f bdlead-backend` to tail logs, `docker compose down`
    to stop, `docker compose down -v` to also wipe the Postgres volume (fresh DB on next `up`).
-   `DEBUG=true` is set in `docker-compose.yml`, so the backend accepts requests with no real
-   login — it falls back to a stub demo user, matching what the web app/extension send today.
+   **Authentication is required.** The API no longer falls back to a stub demo user when the
+   `Authorization` header is missing — that fallback was removed from `get_current_user_api`
+   (`backend/app/api/auth.py`), so every `/api/leads/*` request without a valid JWT returns
+   **401**, regardless of `DEBUG`. Sign in through the web app (or the browser extension) to
+   obtain a token.
 
 3. **Web app (separate terminal)**
    ```bash
@@ -250,11 +257,13 @@ first (step 2 above).
      `WEB_BASE = http://localhost:5173`. Edit that file (then click the reload icon on the
      extension card in `chrome://extensions`) if your backend/web run elsewhere.
 
-3. **(Optional) Set a token**
+3. **Sign in (required)**
    - Click the extension icon → **Options** (or right-click the icon → Options).
-   - Paste a JWT/demo token and Save if you want authenticated requests. This is optional in
-     `DEBUG` mode — with no token, requests go out with no `Authorization` header and the
-     backend falls back to the same stub demo user the web app uses.
+   - Paste your Google OAuth client ID (the same value as `web/.env` → `VITE_GOOGLE_CLIENT_ID`),
+     then **Sign in with Google**.
+   - This is **not optional**: the backend returns 401 for any `/api/leads/*` request without a
+     valid `Authorization` header. See `specs/007-extension-side-panel/quickstart.md` for the
+     one-time OAuth redirect-URI registration this depends on.
 
 4. **Exercise the flows**
    - Click the extension icon → fill in the lead form → **Generate with AI** → confirm the

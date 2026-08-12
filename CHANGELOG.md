@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Browser extension: Chrome Side Panel workspace** (`extension/sidepanel.html`, `sidepanel.js`).
+  The lead form and AI preview now live in a docked, resizable panel that stays open while you
+  browse, replacing the 500px toolbar dropdown that Chrome dismissed on any outside click. Requires
+  **Chrome 116+** (`chrome.sidePanel.open()`); the popup degrades with an explanatory notice below
+  that. Form values and the generated preview survive page navigation and tab switches.
+- **Real Google sign-in** via `chrome.identity.launchWebAuthFlow` (`extension/auth.js`), exchanged
+  for a backend JWT through the existing `POST /api/auth/google`. Reuses the web app's OAuth client
+  ID, because `verify_oauth2_token` pins a single audience — so this needed **no backend change**.
+  One-time setup: register `https://<EXTENSION_ID>.chromiumapp.org/` as an authorized redirect URI
+  and enter the client ID on the options page. See `specs/007-extension-side-panel/quickstart.md`.
+- **"Grab from this page"** — on-demand page capture (`extension/capture.js`) via `chrome.scripting`
+  against the active tab, prefilling company, signal, and source URL. Best-effort metadata
+  heuristics; prefilled values stay editable and never overwrite existing input without confirmation.
+  Contact name and role are deliberately never inferred.
+- `extension/tokens.css` — design tokens and component classes shared by every extension screen,
+  mirrored from `web/src/index.css`, replacing the `:root` blocks that were duplicated inline in
+  `popup.html` and `options.html`.
+- A pinned `key` in `extension/manifest.json`, so the unpacked extension ID is stable and the OAuth
+  redirect URI does not break on reload.
+
+### Changed
+- The toolbar popup is now a **thin launcher** — open the panel, session state, backend reachability,
+  and links out. The lead form and preview rendering moved to the side panel.
+- Options page replaces the hand-pasted JWT with Google sign-in, and adds fields for the Google
+  client ID and the (read-only, copyable) redirect URI. "Clear all data" now warns that it also
+  clears the stored client ID.
+- Preview rendering rebuilt with DOM construction instead of `innerHTML` string concatenation plus a
+  manual escape helper, so escaping cannot be forgotten on a future field.
+- New permissions: `sidePanel`, `identity`, `scripting`, `contextMenus`. **No new host permissions.**
+- Extension body text raised to the dashboard's 15px base; the old 10-11px preview text is gone.
+
+### Fixed
+- **The extension could not authenticate at all.** `get_current_user_api` dropped its DEBUG stub-user
+  fallback and now returns 401 whenever the `Authorization` header is absent, but `popup.js` still
+  documented that fallback as live and treated the token as optional — so every Generate and Push
+  returned 401 unless a JWT had been pasted by hand. Sign-in now supplies a real token.
+- Corrected three README claims that the web app and extension "fall back to a stub demo user",
+  including one in the setup instructions that led new users straight into an unexplained 401.
+- `background.js` no longer logs every incoming message payload, which would have written
+  credentials to the console once auth traffic existed.
+
 ## [0.1.3] - 2026-08-12
 
 ### Changed
