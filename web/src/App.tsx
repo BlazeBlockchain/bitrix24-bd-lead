@@ -30,11 +30,7 @@ function Header() {
             <NavLink to="/usage" className={({ isActive }) => isActive ? 'active' : ''}>Usage</NavLink>
             <NavLink to="/memory" className={({ isActive }) => isActive ? 'active' : ''}>Memory</NavLink>
             <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>Account</NavLink>
-            <NavLink to="/changelog" className={({ isActive }) => isActive ? 'active' : ''}>Changelog</NavLink>
           </>
-        )}
-        {!isLoggedIn && (
-          <NavLink to="/changelog" className={({ isActive }) => isActive ? 'active' : ''}>Changelog</NavLink>
         )}
       </nav>
 
@@ -136,7 +132,8 @@ function App() {
         <Route path="*" element={<div className="page"><p>Page not found. <Link to="/">Go home</Link></p></div>} />
       </Routes>
       <footer style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-        BD Lead • Google OAuth • <a href="https://github.com" target="_blank" rel="noreferrer">docs</a> {version && ` • v${version}`}
+        {version && <>v{version} • </>}
+        <Link to="/changelog">Changelog</Link>
       </footer>
     </BrowserRouter>
   );
