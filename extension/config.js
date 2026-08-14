@@ -8,7 +8,7 @@
 const API_BASE = 'http://localhost:8000/api';
 
 // Web app dashboard base URL — for options page links
-const WEB_BASE = 'http://localhost:5173';
+const WEB_BASE = 'http://localhost:8080';
 
 /**
  * Google OAuth client ID for the extension's sign-in flow.

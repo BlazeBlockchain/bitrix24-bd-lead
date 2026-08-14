@@ -254,7 +254,7 @@ first (step 2 above).
 
 2. **Configure the API/web base (if not using the defaults)**
    - Defaults are in `extension/config.js`: `API_BASE = http://localhost:8000/api`,
-     `WEB_BASE = http://localhost:5173`. Edit that file (then click the reload icon on the
+     `WEB_BASE = http://localhost:8080`. Edit that file (then click the reload icon on the
      extension card in `chrome://extensions`) if your backend/web run elsewhere.
 
 3. **Sign in (required)**
