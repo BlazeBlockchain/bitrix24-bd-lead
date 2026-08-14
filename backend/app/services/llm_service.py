@@ -275,8 +275,21 @@ No prose, no markdown, no ```json fences, no extra keys, no text before or after
 
 
 # ─── Structured JSON parser (defensive) ───────────────────────────────────────
-def _parse_structured_json(text: str) -> dict[str, Any]:
-    """Extract + validate JSON. Falls back to minimal if malformed."""
+def _parse_structured_json(text: str, strict: bool = False) -> dict[str, Any]:
+    """Extract + validate JSON. Falls back to minimal if malformed.
+
+    strict=True raises ValueError when NOTHING usable could be parsed, instead of
+    returning the placeholder defaults below.
+
+    Why that matters: when a provider returns unparseable output, the non-strict
+    path hands back an all-placeholder result ("Company scaling after recent
+    signal.", empty descriptions) that the caller then stamps with a real
+    model_used. A total failure becomes indistinguishable from a real generation
+    — the request logs 200 OK, nothing warns, and the user is shown canned text
+    attributed to the model. Provider calls therefore use strict=True so the
+    fallback chain (Gemini -> Haiku -> mock) actually engages; the mock at least
+    interpolates the real lead fields.
+    """
     text = text.strip()
     if text.startswith("```"):
         # strip fences
@@ -296,6 +309,19 @@ def _parse_structured_json(text: str) -> dict[str, Any]:
                 data = {}
         else:
             data = {}
+
+    if strict and not (isinstance(data, dict) and data):
+        # A response that starts like JSON but does not close is almost always the
+        # output-token budget cutting the object off mid-string — a very different
+        # problem from the model ignoring the format, so say which one it is.
+        looks_truncated = text.lstrip().startswith("{") and not text.rstrip().endswith("}")
+        why = (
+            "response was TRUNCATED mid-JSON (raise max_output_tokens)"
+            if looks_truncated
+            else "response was not JSON"
+        )
+        sample = text[:300].replace("\n", " ")
+        raise ValueError(f"Model returned no parseable JSON — {why} (first 300 chars: {sample!r})")
 
     # Normalize shape (match UI_UX + ARCH expectation + BdLeadResult prep)
     snapshot = data.get("company_snapshot") or data.get("snapshot") or "Company scaling after recent signal."
@@ -396,16 +422,42 @@ async def _call_gemini(prompt: str) -> Optional[dict[str, Any]]:
             model_name=settings.GEMINI_MODEL,
             generation_config={
                 "temperature": 0.4,
-                "max_output_tokens": 800,
+                # Ask the API for JSON directly rather than hoping the prompt is obeyed.
+                # Without this the model may wrap the object in prose or fences, and the
+                # parser then falls through to placeholder text.
+                "response_mime_type": "application/json",
+                # Must comfortably fit the WHOLE JSON object. 800 (and even 2048) truncated
+                # it mid-string: the model writes a full email in personalized_opener plus
+                # three follow-ups with descriptions, and a JSON object cut off partway is
+                # unparseable, so every field fell back to placeholder text. Reasoning
+                # tokens count against this budget too on 2.5-class models.
+                "max_output_tokens": 4096,
             },
         )
+
         # Run sync SDK in thread to keep async
         def _sync_call() -> str:
             resp = model.generate_content(prompt + "\n\nJSON ONLY.")
-            return getattr(resp, "text", "") or str(resp)
+            text = getattr(resp, "text", "") or ""
+            if not text.strip():
+                # Never fall back to str(resp): that is the repr of the response
+                # object, which is never valid JSON but IS a non-empty string, so it
+                # sailed past the parser and silently produced placeholder output.
+                # Surface why the model returned nothing instead.
+                reason = ""
+                try:
+                    cand = (getattr(resp, "candidates", None) or [None])[0]
+                    reason = f" finish_reason={getattr(cand, 'finish_reason', None)}"
+                    fb = getattr(resp, "prompt_feedback", None)
+                    if fb:
+                        reason += f" prompt_feedback={fb}"
+                except Exception:
+                    pass
+                raise ValueError(f"Gemini returned empty text.{reason}")
+            return text
 
         text = await asyncio.to_thread(_sync_call)
-        parsed = _parse_structured_json(text)
+        parsed = _parse_structured_json(text, strict=True)
         parsed["model_used"] = settings.GEMINI_MODEL
         return parsed
     except Exception as e:
@@ -434,7 +486,9 @@ async def _call_haiku(prompt: str) -> Optional[dict[str, Any]]:
         for block in msg.content:
             if getattr(block, "type", None) == "text":
                 text += block.text  # type: ignore
-        parsed = _parse_structured_json(text)
+        if not text.strip():
+            raise ValueError(f"Claude returned empty text (stop_reason={getattr(msg, 'stop_reason', None)})")
+        parsed = _parse_structured_json(text, strict=True)
         parsed["model_used"] = settings.ANTHROPIC_MODEL
         return parsed
     except Exception as e:
