@@ -59,6 +59,35 @@ const text = (value: unknown): string | null => {
 const asConfidenceLevel = (value: unknown): ConfidenceLevel | null =>
   CONFIDENCE_LEVELS.includes(value as ConfidenceLevel) ? (value as ConfidenceLevel) : null;
 
+/**
+ * Re-validates the citation URL the server already validated.
+ *
+ * Same reasoning as asConfidenceLevel — a stored enrichment can predate the
+ * server-side validator — with more at stake, because this value ends up in an
+ * href. https only: javascript: and data: are the attack cases, and http is
+ * refused because a link we invite the user to click should not be
+ * downgradeable in transit.
+ *
+ * Returns the parsed URL so the caller renders the hostname as link text. That
+ * is not the client-side derivation this brief forbids: it makes no new claim,
+ * it renders the datum the server sent. It also guarantees the link text cannot
+ * misrepresent where the link goes, which a model-supplied publisher name
+ * ("TechCrunch" over a link to somewhere else) could.
+ */
+const httpsUrl = (value: unknown): URL | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' || !parsed.hostname) return null;
+  return parsed;
+};
+
 const BuyingSignalSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched }) => {
   const signal = enriched.buying_signal;
   const summary = signal && typeof signal === 'object' ? text(signal.summary) : null;
@@ -73,13 +102,39 @@ const BuyingSignalSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched
   const source = text(signal!.source);
   const date = text(signal!.date);
 
+  // 010: the citation. The quote is evidence FOR the summary, so it cannot
+  // outlive the link that makes it checkable — an uncheckable quote is a
+  // fabrication surface, not evidence. The server enforces the same pairing;
+  // this is the both-sides re-check.
+  const url = httpsUrl(signal!.source_url);
+  const quote = url ? text(signal!.quote) : null;
+
   return (
     <div className="brief-section">
       <p className="brief-title">Buying signal</p>
       <p className="brief-text">{summary}</p>
-      {(source || date) && (
+      {quote && <blockquote className="brief-quote">{quote}</blockquote>}
+      {(source || date || url) && (
         <div className="brief-meta">
-          {source && <span className="brief-meta-item">Source: {source}</span>}
+          {/* When a real link exists it replaces the plain attribution rather than
+              joining it: two source chips that disagree is worse than one that is
+              checkable, and the hostname already carries the publisher identity. */}
+          {url ? (
+            <span className="brief-meta-item">
+              Source:{' '}
+              <a
+                className="brief-link"
+                href={url.href}
+                title={url.href}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {url.hostname}
+              </a>
+            </span>
+          ) : (
+            source && <span className="brief-meta-item">Source: {source}</span>
+          )}
           {date && <span className="brief-meta-item">{date}</span>}
         </div>
       )}

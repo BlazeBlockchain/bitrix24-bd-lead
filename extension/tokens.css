@@ -452,6 +452,45 @@ label {
   overflow-wrap: anywhere;
 }
 
+/* 010: the supporting sentence from the cited page. Set apart from .brief-text
+   because these are somebody else's words, not the model's — a rep skimming the
+   brief should be able to tell at a glance which claims are ours. A left rule
+   rather than a full box: it is evidence for the summary above it, not a
+   section of its own. Only ever rendered alongside a valid link, so the quote
+   is always one click from being falsified.
+
+   Shared verbatim between web/src/index.css and extension/tokens.css so the two
+   surfaces cannot drift. */
+.brief-quote {
+  font-size: var(--fs-sm);
+  font-style: italic;
+  color: var(--muted);
+  margin: 8px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent-line);
+  overflow-wrap: anywhere;
+}
+
+/* The citation link. Only ever rendered for a URL that passed the https check
+   on BOTH sides, with the hostname as its text. overflow-wrap matters here more
+   than anywhere else on the brief: a long real URL in the title attribute is
+   fine, but the visible hostname still has to break rather than push the
+   resizable panel into horizontal scroll. */
+.brief-link {
+  color: var(--accent);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.brief-link:hover {
+  text-decoration: underline;
+}
+
+.brief-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .confidence-row {
   display: flex;
   align-items: center;

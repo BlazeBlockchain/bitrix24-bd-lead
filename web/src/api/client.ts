@@ -180,6 +180,12 @@ export interface EnrichedPreview {
     summary: string;
     source?: string;
     date?: string;
+    // 010: the retrieval-sourced citation. Set only by the server, from retrieval
+    // metadata — never by the model, whose source_url/quote are stripped on parse.
+    // Still validated before rendering: https-only, and a quote never outlives the
+    // link that makes it checkable.
+    source_url?: string;
+    quote?: string;
   };
   contact_confidence?: {
     level: ConfidenceLevel;

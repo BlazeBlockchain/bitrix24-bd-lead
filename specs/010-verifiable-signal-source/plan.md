@@ -113,6 +113,45 @@ generated token blocks, all of `docs/design/`.
 | Tests hermetic and offline | VERIFY | P3 mocks retrieval; NFR-002 |
 | Backend tests / web build green | VERIFY | 137 must not drop |
 
+## P2 results — measured 2026-08-15
+
+Both surfaces render the citation. 8 fixtures × 2 surfaces (full citation, long hostname, URL without
+quote, quote without URL, `javascript:`, `data:`, `http:`, no citation), plus a layout sweep at
+320/400/500/720. All green; 11 mutations confirmed each assertion is live.
+
+### Two harness traps that made the first sweep vacuous
+
+Both are worth recording, because a harness that cannot fail looks exactly like one that passes.
+
+1. **`#previewSection` ships `style="display: none"`.** The first version of the sweep measured
+   without un-hiding it, so every element returned width 0 and the font-size scan skipped the entire
+   brief (it filters `display:none`). The DOM assertions were unaffected — they query, not measure —
+   which is why the link-safety mutations still caught correctly while the layout half proved
+   nothing. The sweep now asserts `measured > 15` so it cannot go quiet again undetected.
+
+2. **The classic `documentElement.scrollWidth <= clientWidth` assertion is a tautology on this
+   surface.** `body`, `.panel-container` and `.panel-content` all set `overflow-x: hidden`, so the
+   document can never report horizontal scroll no matter what is rendered. Overflow here does not
+   scroll, it **clips** — the real failure mode is content silently cut off. The check is now against
+   the container's right edge (`rect.right > container.right + 1`) plus the container's own
+   `scrollWidth`, which does catch it.
+
+A third finding changed the fixtures: once link text is the hostname, a long *path* no longer
+threatens the layout, so `overflow-wrap` on `.brief-link` looked unnecessary. It is not — a long
+*hostname* still overflows, and mutating the rule to `nowrap` pushes content to x=750 in a 320px
+panel. The stress fixture is a 121-character hostname for that reason.
+
+### Design decisions settled during the render
+
+- **Link text is the hostname, and a valid link replaces the plain `source` chip rather than joining
+  it.** Two source chips that disagree is worse than one that is checkable, and a model-supplied
+  publisher name ("TechCrunch") sitting over a link to somewhere else is a mismatch the rep has no
+  way to notice. Rendering the hostname makes the link text structurally incapable of misdescribing
+  the destination. This is not the client-side derivation the contract forbids: it makes no new
+  claim, it renders the datum the server sent.
+- **The quote is a `<blockquote>` with a left rule**, not a boxed section — it is evidence for the
+  summary above it, not a section of its own, and the visual break signals "somebody else's words".
+
 ## Risks
 
 | Risk | Mitigation |

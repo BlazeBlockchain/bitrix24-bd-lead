@@ -324,6 +324,28 @@ function confidenceLevel(value) {
   return level && CONFIDENCE_LEVELS.indexOf(level) !== -1 ? level : null;
 }
 
+/**
+ * Re-validates the citation URL the server already validated.
+ *
+ * Same reason as confidenceLevel — a stored enrichment can predate the
+ * server-side validator — with more at stake, because this value ends up in an
+ * href. https only: javascript: and data: are the attack cases, and http is
+ * refused because a link we invite the rep to click should not be downgradeable
+ * in transit. Returns the parsed URL so the caller never re-parses it.
+ */
+function httpsUrl(value) {
+  const raw = briefText(value);
+  if (!raw) return null;
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (e) {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' || !parsed.hostname) return null;
+  return parsed;
+}
+
 /** <p class="{className}">{value}</p> — textContent, never innerHTML. */
 function makeText(tag, className, value) {
   const el = document.createElement(tag);
@@ -341,6 +363,31 @@ function makeInertSection(title, note) {
   box.appendChild(makeText('p', 'inert-title', title));
   box.appendChild(makeText('p', 'inert-note', note));
   return box;
+}
+
+/**
+ * The source chip, carrying a real link.
+ *
+ * Assembled node by node on purpose: href is assigned only after httpsUrl has
+ * passed, and the anchor is never built from a template string. Link text is
+ * the hostname, so what the rep clicks always matches what they read — a
+ * model-supplied publisher name over a link to somewhere else is exactly the
+ * mismatch this avoids. rel="noopener noreferrer" because target="_blank"
+ * otherwise hands the opened page a handle on this one.
+ */
+function makeSourceLinkChip(url) {
+  const chip = document.createElement('span');
+  chip.className = 'brief-meta-item';
+  chip.appendChild(document.createTextNode('Source: '));
+  const link = document.createElement('a');
+  link.className = 'brief-link';
+  link.textContent = url.hostname;
+  link.href = url.href;
+  link.title = url.href;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  chip.appendChild(link);
+  return chip;
 }
 
 /** A populated section shell: solid border + uppercase title. */
@@ -365,12 +412,24 @@ function renderBuyingSignal(enrichment) {
   // Source and date are independently optional: the model is instructed to omit
   // an attribution it cannot support rather than invent one, so a summary with
   // no source is the expected honest case, not a degraded one.
+  // 010: the citation. The quote is evidence FOR the summary, so it cannot
+  // outlive the link that makes it checkable — an uncheckable quote is a
+  // fabrication surface, not evidence. The server enforces the same pairing;
+  // this is the both-sides re-check.
+  const url = httpsUrl(signal.source_url);
+  const quote = url ? briefText(signal.quote) : null;
+  if (quote) box.appendChild(makeText('blockquote', 'brief-quote', quote));
+
   const source = briefText(signal.source);
   const date = briefText(signal.date);
-  if (source || date) {
+  if (source || date || url) {
     const meta = document.createElement('div');
     meta.className = 'brief-meta';
-    if (source) meta.appendChild(makeText('span', 'brief-meta-item', `Source: ${source}`));
+    // A real link replaces the plain attribution rather than joining it: two
+    // source chips that disagree is worse than one that is checkable, and the
+    // hostname already carries the publisher identity.
+    if (url) meta.appendChild(makeSourceLinkChip(url));
+    else if (source) meta.appendChild(makeText('span', 'brief-meta-item', `Source: ${source}`));
     if (date) meta.appendChild(makeText('span', 'brief-meta-item', date));
     box.appendChild(meta);
   }
