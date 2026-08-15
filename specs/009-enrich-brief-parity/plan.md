@@ -111,6 +111,53 @@ a working UI.
 | Version not hand-edited | PASS | `make bump-*` |
 | Backend tests / web build green | VERIFY | real gate; additive changes should keep 77 passing |
 
+## P3 results — measured 2026-08-15 (NFR-005, NFR-007, SC-005, SC-006)
+
+Real `gemini-2.5-flash`, 5 leads × before/after, same leads and same model both times so the delta is
+attributable to the widened contract alone. "Before" is the v0.2.0 prompt (`f5e5e8c`). 10/10 calls
+parsed; 4/4 new fields present in 5/5 after-runs.
+
+| | before | after (tuned) | delta |
+|---|---|---|---|
+| input tokens (mean) | 5,165 | 5,929 | +764 (+14.8%) |
+| output tokens (mean) | 487 | 742 | +255 (+52.4%) |
+| total incl. reasoning | 8,124 | 9,072 | +948 (+11.7%) |
+| latency mean | 13.44s | 14.24s | +0.80s |
+| latency max | 17.57s | 15.36s | — |
+
+**Verdict**: accepted. Output tokens rise by half, but output is the small half of this request — the
+skill methodology dominates the prompt — so total cost rises ~12% and latency is within noise of the
+existing flow. This is the conscious, recorded trade-off NFR-005 asks for.
+
+### Two defects found by the first live run, and fixed
+
+1. **Fabricated date (SC-006).** Signal "hired a new CTO from Epic in March" — no year — produced
+   `date: "2024-03-15"`, inventing both the year (it is 2026) and the day. The server-side check only
+   rejects *future* dates, so a confidently-wrong past date passed. Fixed in the prompt: a partial
+   date (month with no year, quarter, season, "recently") must omit the key entirely, and the model
+   must never complete a partial date. Re-run: 0/5 fabricated dates.
+2. **Confidence was decorative.** 5/5 returned `high`, including the deliberately vague stress lead,
+   with circular reasons ("Contact and role explicitly provided in the lead brief") — the model was
+   assessing whether the form was filled in, not role fit. This is the exact risk in the table below.
+   Fixed in the prompt: level is defined as role-fit against the pain point, the contact being
+   supplied is named as the input and not evidence, per-level criteria are spelled out, and a
+   too-vague brief must yield `low`. Re-run: the vague lead drops to `low` with a role-fit reason;
+   reasons now cite the role and the pain point.
+
+### Known gaps
+
+- **`source` is uninformative.** 5/5 returned "reported in the lead brief". That is *correct* — it is
+  the only honest attribution available without retrieval — but it means the Source chip tells the
+  user nothing. Fixing it properly requires live retrieval, which is out of scope.
+- **The Haiku fallback is unverified live.** `ANTHROPIC_API_KEY` is empty in `.env`, so `_call_haiku`
+  returns `None` immediately and the chain is Gemini → mock with no Haiku step. The P1 `max_tokens`
+  800 → 4096 change is therefore reasoned, not measured.
+- **The usage ledger records fabricated token counts.** `generate_enrichment` calls `_record_usage`
+  with hardcoded `input_tokens=400, output_tokens=250` and `cost_cents=1` for real calls. Measured
+  reality is ~5,929 / ~742 — input is under-recorded ~15×. `_check_budget` therefore guards against a
+  number unrelated to spend. Out of 009's scope (it changes `usage_ledger` rows and
+  `/api/usage/summary`), but it means NFR-005's trade-off never actually reaches the budget path.
+
 ## Risks
 
 | Risk | Mitigation |
@@ -122,15 +169,20 @@ a working UI.
 | Two renderers drift | Same contract doc drives both; the 008 harness asserts both surfaces |
 | Panel overflow with a full email body | `pre-wrap` + `overflow-wrap: anywhere` already in the token CSS; re-run the harness at narrow widths with long content |
 
-## Open questions to resolve before P3
+## Open questions — resolved 2026-08-15
 
-1. **Should `crm_entry` eventually drive the actual push**, or stay display-only? This plan keeps it
-   display-only. Wiring it to the push contract is a separate feature with real blast radius.
-2. **Is "source" allowed to be a bare claim** ("company blog, Q2") or must it be a URL? Bare claims
-   are more achievable without retrieval; URLs invite fabrication. This plan assumes bare claims,
-   omitted when unsupported.
-3. **Does the outreach email replace `personalized_opener`, or wrap it?** This plan keeps both: the
-   opener stays frozen, and the email is additive. Merging them later is a contract change.
+1. **Should `crm_entry` eventually drive the actual push?** — **Yes, eventually.** Out of scope for
+   009, which keeps it display-only and labels the section "CRM entry (preview)" to say so. Wiring it
+   to `/api/leads/push` is a separate feature with real blast radius on the CRM adapters.
+2. **Is "source" allowed to be a bare claim, or must it be a URL?** — **Bare claim.** Encoded in
+   `_build_prompt` as of P1: a short plain-text attribution ("company blog"), explicitly *not* a URL
+   the model cannot verify. URLs invite exactly the fabrication FR-007 exists to prevent.
+3. **Does the outreach email replace `personalized_opener`, or wrap it?** — **Replaces it, in the UI
+   only.** Both surfaces hide the "Suggested Opener" card when a valid email is present, because two
+   different openings for one lead invite the user to send a message contradicting the one below it.
+   The field itself stays frozen in the response and still builds the CRM deal comment
+   (`lead_service.py:95`), so the ADDITIVE-ONLY constraint and its 76 assertions are untouched. The
+   opener card remains the email's fallback, which keeps "use the opener above" true when inert.
 
 ## Next steps
 

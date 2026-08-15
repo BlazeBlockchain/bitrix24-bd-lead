@@ -260,10 +260,24 @@ REQUIREMENTS (strict output contract)
    - summary (1 sentence: what the signal is and why it matters now)
    - source (where the signal came from, as a short plain-text attribution such as
      "company blog" or "reported in the lead brief" — NOT a URL you cannot verify)
-   - date (YYYY-MM-DD, only when the signal's date is genuinely established)
-5. contact_confidence: how confident you are that this contact is the right person, with
+   - date (YYYY-MM-DD) — include ONLY if the lead brief states a complete,
+     unambiguous date. If it gives a month with no year ("in March"), a quarter, a
+     season, or a vague word ("recently", "last year"), OMIT the date key entirely.
+     NEVER complete a partial date: do not infer the day of the month, and do not
+     infer the year. A missing date is correct. A completed one is fabrication, even
+     when the guess is plausible.
+5. contact_confidence: how likely this specific person is the RIGHT person to
+   approach about this specific pain point. This is a judgement about role fit —
+   it is NOT about whether the lead brief was filled in. The contact's name and
+   title being supplied is the INPUT to this assessment, never evidence for it, and
+   must not appear in your reason. Do not default to "high".
    - level: EXACTLY one of "high", "medium", "low" — no other value, no other wording
-   - reason (1 short sentence justifying that level, based on the role and the signal)
+       high   = this role plainly owns this pain point and can authorise a fix
+       medium = this role is plausibly involved but may not own the budget or the decision
+       low    = the role is unclear, too junior, or in a different function from the pain
+     If the signal or the pain point is too vague to judge role fit, use "low".
+   - reason (1 short sentence referring to the ROLE and the PAIN POINT — never to
+     the brief, the input, or what you were given)
 6. outreach_email: a complete, ready-to-send cold email, with
    - subject (short, specific, no clickbait)
    - body (plain text; use "\\n" for line breaks; greet the contact by first name and
