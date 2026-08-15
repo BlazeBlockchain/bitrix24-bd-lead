@@ -44,15 +44,42 @@ def _get_user_key(user: dict | None) -> str:
     return str(user.get("id") or user.get("email") or "unknown")
 
 
-def _check_budget(user: dict | None, estimated_cents: int = 2) -> bool:
-    """Hard per-user daily guard (NFR). Returns True if within budget."""
+# ─── Cost model (009 P3) ───────────────────────────────────────────────────────
+# Private key used to carry real provider usage back from _call_gemini/_call_haiku
+# to generate_enrichment. It is popped before the result is returned, so it never
+# reaches /api/leads/enrich or either client. Underscore-prefixed to make an
+# accidental leak obvious in a response body.
+_USAGE_KEY = "_usage"
+
+
+def _cost_cents(model: str, input_tokens: int, output_tokens: int) -> float:
+    """Cost of one call, in cents, as a float.
+
+    Float on purpose: a single enrichment costs ~0.36 cents, so rounding per call
+    would floor every real call to zero and the daily budget would never move.
+    Callers accumulate the float and round only when writing the integer ledger
+    column.
+    """
+    rates = settings.LLM_PRICE_CENTS_PER_MTOK.get(
+        model, settings.LLM_PRICE_CENTS_PER_MTOK_DEFAULT
+    )
+    return (input_tokens * rates["in"] + output_tokens * rates["out"]) / 1_000_000
+
+
+def _check_budget(user: dict | None, estimated_cents: float = 2) -> bool:
+    """Hard per-user daily guard (NFR). Returns True if within budget.
+
+    The estimate is deliberately conservative and is checked BEFORE the call, when
+    the real token count cannot be known. Erring high means the guard trips early
+    rather than late, which is the safe direction for a spend cap.
+    """
     if settings.DEBUG:
         return True  # allow in dev
     uid = _get_user_key(user)
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    rec = _user_daily_usage.get(uid, {"date": today, "cents": 0, "calls": 0})
+    rec = _user_daily_usage.get(uid, {"date": today, "cents": 0.0, "calls": 0})
     if rec["date"] != today:
-        rec = {"date": today, "cents": 0, "calls": 0}
+        rec = {"date": today, "cents": 0.0, "calls": 0}
     if rec["cents"] + estimated_cents > settings.LLM_DAILY_BUDGET_CENTS:
         logger.warning(f"LLM budget exceeded for {uid}: {rec['cents']}+{estimated_cents} > {settings.LLM_DAILY_BUDGET_CENTS}")
         return False
@@ -64,7 +91,7 @@ async def _record_usage(
     model: str,
     input_tokens: int,
     output_tokens: int,
-    cost_cents: int,
+    cost_cents: float,
     db: Any = None,  # AsyncSession | None; using Any to avoid import cycles
     lead_id: str | None = None,
 ) -> None:
@@ -83,13 +110,16 @@ async def _record_usage(
     uid = _get_user_key(user)
     today = datetime.utcnow().strftime("%Y-%m-%d")
     if uid not in _user_daily_usage or _user_daily_usage[uid]["date"] != today:
-        _user_daily_usage[uid] = {"date": today, "cents": 0, "calls": 0}
+        _user_daily_usage[uid] = {"date": today, "cents": 0.0, "calls": 0}
+    # Accumulated as a float so sub-cent calls actually move the daily total. Rounding
+    # here instead would floor every real enrichment (~0.36 cents) to zero and the
+    # budget guard would never trip no matter how many calls were made.
     _user_daily_usage[uid]["cents"] += cost_cents
     _user_daily_usage[uid]["calls"] += 1
 
     # Structured log for observability
     logger.info(
-        "LLM_USAGE: user=%s model=%s in=%d out=%d cost_cents=%d daily_total=%d calls=%d",
+        "LLM_USAGE: user=%s model=%s in=%d out=%d cost_cents=%.4f daily_total=%.4f calls=%d",
         uid, model, input_tokens, output_tokens, cost_cents,
         _user_daily_usage[uid]["cents"], _user_daily_usage[uid]["calls"],
     )
@@ -130,7 +160,12 @@ async def _record_usage(
                 model=model,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                estimated_cost_cents=cost_cents,
+                # The column is an integer, so a single sub-cent enrichment rounds to
+                # 0 here. That is a known limitation of the schema, not of the
+                # measurement: input_tokens/output_tokens above are the exact provider
+                # counts, so true spend stays recomputable from the row. Widening this
+                # column to a finer unit needs a migration.
+                estimated_cost_cents=round(cost_cents),
                 created_at=datetime.utcnow(),
             )
             db.add(ledger_entry)
@@ -615,6 +650,10 @@ def _mock_generate(lead_brief: dict, memory_ctx: str) -> dict[str, Any]:
 async def _call_gemini(prompt: str) -> Optional[dict[str, Any]]:
     """Primary: Gemini 2.5 Flash. Structured via prompt + parse (response_schema supported in recent SDK)."""
     if not settings.GEMINI_API_KEY:
+        # Says which of the two "returned None" cases this is. Without it, an
+        # unconfigured key and a failing provider are indistinguishable in the logs,
+        # and the fallback chain looks identical either way.
+        logger.info("Gemini skipped: GEMINI_API_KEY is not set")
         return None
     try:
         import google.generativeai as genai  # type: ignore
@@ -638,7 +677,7 @@ async def _call_gemini(prompt: str) -> Optional[dict[str, Any]]:
         )
 
         # Run sync SDK in thread to keep async
-        def _sync_call() -> str:
+        def _sync_call() -> tuple[str, dict[str, int]]:
             resp = model.generate_content(prompt + "\n\nJSON ONLY.")
             text = getattr(resp, "text", "") or ""
             if not text.strip():
@@ -656,11 +695,24 @@ async def _call_gemini(prompt: str) -> Optional[dict[str, Any]]:
                 except Exception:
                     pass
                 raise ValueError(f"Gemini returned empty text.{reason}")
-            return text
+            # Real provider counts. Previously the caller logged a hardcoded
+            # 400/250 for every call, which under-recorded input by roughly 15x
+            # and left the budget guard watching a number unrelated to spend.
+            # candidates_token_count excludes reasoning tokens, which 2.5-class
+            # models bill separately; total_token_count is what actually gets
+            # charged, so the difference is attributed to output.
+            um = getattr(resp, "usage_metadata", None)
+            in_tok = int(getattr(um, "prompt_token_count", 0) or 0)
+            out_tok = int(getattr(um, "candidates_token_count", 0) or 0)
+            total = int(getattr(um, "total_token_count", 0) or 0)
+            if total > in_tok + out_tok:
+                out_tok = total - in_tok
+            return text, {"input_tokens": in_tok, "output_tokens": out_tok}
 
-        text = await asyncio.to_thread(_sync_call)
+        text, usage = await asyncio.to_thread(_sync_call)
         parsed = _parse_structured_json(text, strict=True)
         parsed["model_used"] = settings.GEMINI_MODEL
+        parsed[_USAGE_KEY] = usage
         return parsed
     except Exception as e:
         logger.warning(f"Gemini call failed (will fallback): {e}")
@@ -670,6 +722,10 @@ async def _call_gemini(prompt: str) -> Optional[dict[str, Any]]:
 async def _call_haiku(prompt: str) -> Optional[dict[str, Any]]:
     """Fallback: Claude Haiku. Instruct for JSON."""
     if not settings.ANTHROPIC_API_KEY:
+        # Distinguishes "no key configured" from "the call failed" — both used to
+        # surface as a bare None. With the key unset the chain is really
+        # Gemini -> mock, with no Haiku step at all, and nothing said so.
+        logger.info("Haiku fallback skipped: ANTHROPIC_API_KEY is not set")
         return None
     try:
         from anthropic import AsyncAnthropic  # type: ignore
@@ -698,6 +754,11 @@ async def _call_haiku(prompt: str) -> Optional[dict[str, Any]]:
             raise ValueError(f"Claude returned empty text (stop_reason={getattr(msg, 'stop_reason', None)})")
         parsed = _parse_structured_json(text, strict=True)
         parsed["model_used"] = settings.ANTHROPIC_MODEL
+        usage = getattr(msg, "usage", None)
+        parsed[_USAGE_KEY] = {
+            "input_tokens": int(getattr(usage, "input_tokens", 0) or 0),
+            "output_tokens": int(getattr(usage, "output_tokens", 0) or 0),
+        }
         return parsed
     except Exception as e:
         logger.warning(f"Haiku fallback failed: {e}")
@@ -760,13 +821,21 @@ async def generate_enrichment(
         result = _mock_generate(lead_brief, mem)
         used_model = result["model_used"]
 
-    # Record usage (mocked tokens/cost for real calls too; real SDK usage in resp) + persist to DB (T010)
+    # Real provider token counts, priced from the table in config. Popped here so the
+    # private carrier key can never reach /api/leads/enrich or either client — the
+    # response contract stays exactly what contracts/enrich-contract.md says it is.
+    #
+    # A mock result has no usage: it cost nothing, so it records nothing rather than
+    # a nominal cent, and the ledger stays a record of actual spend.
+    usage = result.pop(_USAGE_KEY, None) or {}
+    input_tokens = int(usage.get("input_tokens", 0))
+    output_tokens = int(usage.get("output_tokens", 0))
     await _record_usage(
         current_user,
         used_model or "unknown",
-        input_tokens=400,  # rough
-        output_tokens=250,
-        cost_cents=1 if "mock" not in result else 0,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_cents=_cost_cents(used_model or "unknown", input_tokens, output_tokens),
         db=db,
     )
 

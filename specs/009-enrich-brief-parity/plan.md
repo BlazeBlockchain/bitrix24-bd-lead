@@ -129,6 +129,13 @@ parsed; 4/4 new fields present in 5/5 after-runs.
 skill methodology dominates the prompt — so total cost rises ~12% and latency is within noise of the
 existing flow. This is the conscious, recorded trade-off NFR-005 asks for.
 
+**On the "output tokens" row**: it is `candidates_token_count`, which is the visible answer only.
+2.5-class models also charge *reasoning* tokens at the output rate, and those land in
+`total_token_count` — roughly 2,900 billable output tokens per enrichment against ~740 visible. The
+before/after delta above is still sound because both sides were measured the same way, but the
+absolute cost per enrichment is **~0.91 cents**, not the ~0.36 that the visible count alone implies.
+`_call_gemini` therefore records `total_token_count - prompt_token_count` as output.
+
 ### Two defects found by the first live run, and fixed
 
 1. **Fabricated date (SC-006).** Signal "hired a new CTO from Epic in March" — no year — produced
@@ -149,14 +156,24 @@ existing flow. This is the conscious, recorded trade-off NFR-005 asks for.
 - **`source` is uninformative.** 5/5 returned "reported in the lead brief". That is *correct* — it is
   the only honest attribution available without retrieval — but it means the Source chip tells the
   user nothing. Fixing it properly requires live retrieval, which is out of scope.
-- **The Haiku fallback is unverified live.** `ANTHROPIC_API_KEY` is empty in `.env`, so `_call_haiku`
-  returns `None` immediately and the chain is Gemini → mock with no Haiku step. The P1 `max_tokens`
-  800 → 4096 change is therefore reasoned, not measured.
-- **The usage ledger records fabricated token counts.** `generate_enrichment` calls `_record_usage`
-  with hardcoded `input_tokens=400, output_tokens=250` and `cost_cents=1` for real calls. Measured
-  reality is ~5,929 / ~742 — input is under-recorded ~15×. `_check_budget` therefore guards against a
-  number unrelated to spend. Out of 009's scope (it changes `usage_ledger` rows and
-  `/api/usage/summary`), but it means NFR-005's trade-off never actually reaches the budget path.
+- **The Haiku fallback is still unverified live.** `ANTHROPIC_API_KEY` is empty in `.env`, so
+  `_call_haiku` returns `None` immediately and the chain is really Gemini → mock with no Haiku step.
+  The P1 `max_tokens` 800 → 4096 change is reasoned, not measured. Both providers now log *why* they
+  were skipped, so an unset key no longer looks identical to a failing provider — but confirming the
+  fallback needs a key.
+
+### Fixed after the P3 review
+
+- **The usage ledger recorded fabricated token counts.** `generate_enrichment` passed hardcoded
+  `input_tokens=400, output_tokens=250, cost_cents=1` for every real call, against a measured ~5,950
+  in / ~2,900 billable out — input under-recorded ~15×, and `_check_budget` guarding a number
+  unrelated to spend. Now: both providers return real usage on a private `_usage` key, priced from
+  `LLM_PRICE_CENTS_PER_MTOK` in config, and the key is popped before the response leaves the service
+  so the enrich contract is unchanged. The in-memory daily total accumulates a **float**, because
+  rounding a ~0.91-cent call to an integer would floor every enrichment to zero and freeze the budget
+  guard entirely. The `usage_ledger.estimated_cost_cents` column is still an integer and still rounds
+  per row — widening it needs a migration — but `input_tokens`/`output_tokens` are now exact, so true
+  spend stays recomputable from the row.
 
 ## Risks
 

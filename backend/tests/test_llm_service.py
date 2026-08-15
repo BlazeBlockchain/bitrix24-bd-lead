@@ -597,3 +597,124 @@ class TestMockGeneratesFullShape:
         rationales = " ".join(f["rationale"] for f in _mock_generate(mock_lead_input, "m")["follow_ups"])
         assert "{signal_type}" not in rationales
         assert mock_lead_input["signal_type"] in rationales
+
+
+# ─── 009 P3: real token accounting ────────────────────────────────────────────
+#
+# Before this, generate_enrichment logged a hardcoded 400 in / 250 out and a flat
+# 1 cent for every real call. Measured reality on gemini-2.5-flash is ~5,900 in /
+# ~740 out, so input was under-recorded roughly 15x and _check_budget was guarding
+# a number unrelated to spend.
+
+@pytest.mark.service
+class TestCostModel:
+    def test_known_model_is_priced_from_the_table(self):
+        from app.services.llm_service import _cost_cents
+
+        # 1M in at 30c + 1M out at 250c
+        assert _cost_cents("gemini-2.5-flash", 1_000_000, 1_000_000) == pytest.approx(280.0)
+
+    def test_realistic_enrichment_costs_a_fraction_of_a_cent(self):
+        """The measured 009 shape. If this ever rounds to 0, the budget stops moving."""
+        from app.services.llm_service import _cost_cents
+
+        cost = _cost_cents("gemini-2.5-flash", 5929, 742)
+        assert 0 < cost < 1, f"expected a sub-cent cost, got {cost}"
+
+    def test_unknown_model_falls_back_to_a_nonzero_rate(self):
+        """An unpriced model must never be silently free."""
+        from app.services.llm_service import _cost_cents
+
+        assert _cost_cents("some-new-model", 1_000_000, 0) > 0
+
+    def test_zero_tokens_cost_nothing(self):
+        from app.services.llm_service import _cost_cents
+
+        assert _cost_cents("gemini-2.5-flash", 0, 0) == 0
+
+
+@pytest.mark.service
+class TestUsageAccounting:
+    @pytest.mark.asyncio
+    async def test_real_provider_usage_reaches_the_ledger(self, mock_lead_input, mock_current_user):
+        _reset_usage_ledger_for_tests()
+        with patch("app.services.llm_service.settings") as mock_settings, \
+             patch("app.services.llm_service._call_gemini") as mock_gemini, \
+             patch("app.services.llm_service._record_usage") as mock_record:
+            mock_settings.DEBUG = True
+            mock_settings.LLM_DAILY_BUDGET_CENTS = 10000
+            mock_settings.GEMINI_MODEL = "gemini-2.5-flash"
+            mock_settings.LLM_PRICE_CENTS_PER_MTOK = {"gemini-2.5-flash": {"in": 30.0, "out": 250.0}}
+            mock_settings.LLM_PRICE_CENTS_PER_MTOK_DEFAULT = {"in": 100.0, "out": 500.0}
+            mock_record.return_value = None
+            mock_gemini.return_value = {
+                "company_snapshot": "S", "personalized_opener": "O", "follow_ups": [],
+                "model_used": "gemini-2.5-flash",
+                "_usage": {"input_tokens": 5929, "output_tokens": 742},
+            }
+
+            await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+
+            kwargs = mock_record.call_args.kwargs
+            assert kwargs["input_tokens"] == 5929, "the hardcoded 400 must be gone"
+            assert kwargs["output_tokens"] == 742, "the hardcoded 250 must be gone"
+            assert 0 < kwargs["cost_cents"] < 1
+
+    @pytest.mark.asyncio
+    async def test_usage_key_never_reaches_the_response(self, mock_lead_input, mock_current_user):
+        """The carrier key is internal. Leaking it would break the enrich contract."""
+        _reset_usage_ledger_for_tests()
+        with patch("app.services.llm_service.settings") as mock_settings, \
+             patch("app.services.llm_service._call_gemini") as mock_gemini:
+            mock_settings.DEBUG = True
+            mock_settings.LLM_DAILY_BUDGET_CENTS = 10000
+            mock_settings.GEMINI_MODEL = "gemini-2.5-flash"
+            mock_settings.LLM_PRICE_CENTS_PER_MTOK = {}
+            mock_settings.LLM_PRICE_CENTS_PER_MTOK_DEFAULT = {"in": 100.0, "out": 500.0}
+            mock_gemini.return_value = {
+                "company_snapshot": "S", "personalized_opener": "O", "follow_ups": [],
+                "model_used": "gemini-2.5-flash",
+                "_usage": {"input_tokens": 10, "output_tokens": 20},
+            }
+
+            result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+
+            assert "_usage" not in result
+            assert not any(k.startswith("_") for k in result), f"private keys leaked: {list(result)}"
+
+    @pytest.mark.asyncio
+    async def test_mock_path_records_zero_rather_than_a_nominal_cent(self, mock_lead_input, mock_current_user):
+        """A mock cost nothing, so the ledger stays a record of actual spend."""
+        _reset_usage_ledger_for_tests()
+        with patch("app.services.llm_service.settings") as mock_settings, \
+             patch("app.services.llm_service._call_gemini") as mock_gemini, \
+             patch("app.services.llm_service._call_haiku") as mock_haiku, \
+             patch("app.services.llm_service._record_usage") as mock_record:
+            mock_settings.DEBUG = True
+            mock_settings.LLM_DAILY_BUDGET_CENTS = 10000
+            mock_settings.LLM_PRICE_CENTS_PER_MTOK = {}
+            mock_settings.LLM_PRICE_CENTS_PER_MTOK_DEFAULT = {"in": 100.0, "out": 500.0}
+            mock_record.return_value = None
+            mock_gemini.return_value = None
+            mock_haiku.return_value = None
+
+            await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+
+            kwargs = mock_record.call_args.kwargs
+            assert kwargs["input_tokens"] == 0
+            assert kwargs["output_tokens"] == 0
+            assert kwargs["cost_cents"] == 0
+
+    @pytest.mark.asyncio
+    async def test_sub_cent_calls_accumulate_in_the_daily_total(self):
+        """Rounding per call would floor every enrichment to 0 and freeze the budget."""
+        from app.services.llm_service import _record_usage, _user_daily_usage
+
+        _reset_usage_ledger_for_tests()
+        user = {"id": "budget-user"}
+        for _ in range(10):
+            await _record_usage(user, "gemini-2.5-flash", 5929, 742, 0.36)
+
+        total = _user_daily_usage["budget-user"]["cents"]
+        assert total == pytest.approx(3.6), f"expected ~3.6 cents accumulated, got {total}"
+        assert _user_daily_usage["budget-user"]["calls"] == 10
