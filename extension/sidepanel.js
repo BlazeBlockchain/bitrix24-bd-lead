@@ -52,6 +52,7 @@ const DOM = {
   // Actions
   generateBtn: document.getElementById('generateBtn'),
   pushBtn: document.getElementById('pushBtn'),
+  closePanelBtn: document.getElementById('closePanelBtn'),
 };
 
 /**
@@ -187,7 +188,7 @@ function renderOpener(opener) {
 
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
-  copyBtn.className = 'opener-copy-btn';
+  copyBtn.className = 'btn btn-ghost btn-sm opener-copy-btn';
   copyBtn.textContent = 'Copy';
   copyBtn.addEventListener('click', async () => {
     try {
@@ -790,6 +791,18 @@ async function initializePanel() {
 
   // Grab from page button (T066)
   DOM.grabButton.addEventListener('click', handleCapture);
+
+  // Close the panel from inside it. A side panel is an extension page, so
+  // window.close() dismisses it.
+  //
+  // This control lives in the FOOTER on purpose. Chrome renders its own close
+  // X in the side-panel header; putting ours in our top-right would give the
+  // user two competing dismiss affordances in the same corner.
+  if (DOM.closePanelBtn) {
+    DOM.closePanelBtn.addEventListener('click', () => {
+      window.close();
+    });
+  }
 }
 
 /**

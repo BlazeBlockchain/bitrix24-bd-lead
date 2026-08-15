@@ -224,7 +224,7 @@ export const ConnectionsForm: React.FC = () => {
       <div className="card">
         <h3>All Connections{loadError ? '' : ` (${connections.length})`}</h3>
         {loadError ? (
-          <p style={{ color: 'var(--danger)' }}>
+          <p style={{ color: 'var(--red)' }}>
             {loadError} Your stored credentials are safe — this page just could not read them.
           </p>
         ) : connections.length === 0 ? (

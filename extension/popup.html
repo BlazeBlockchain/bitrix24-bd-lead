@@ -1,31 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-density="compact">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BD Lead AI - Popup</title>
   <link rel="stylesheet" href="tokens.css">
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
     body {
       width: 320px;
       margin: 0;
       padding: 0;
+      /* Explicit, never inherited -- see the note in tokens.css. */
+      font-size: var(--fs-body);
+      overflow-x: hidden;
     }
 
     .popup-container {
+      position: relative;
       display: flex;
       flex-direction: column;
       min-height: 100vh;
     }
 
+    .header,
+    .content,
+    .footer {
+      position: relative;
+      z-index: 1;
+    }
+
     .header {
-      background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 12px 16px;
+      padding: 12px 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -35,55 +41,64 @@
 
     .header-title {
       font-weight: 600;
-      font-size: 14px;
+      font-size: var(--fs-sm);
+      letter-spacing: var(--ls-tight);
       margin: 0;
     }
 
     .header-links {
       display: flex;
-      gap: 8px;
-      font-size: 12px;
+      gap: 6px;
     }
 
     .header-links a {
-      color: var(--accent);
+      color: var(--muted);
       cursor: pointer;
       text-decoration: none;
+      font-size: var(--fs-sm);
+      padding: 4px 6px;
+      border-radius: var(--r-sm);
+      line-height: 1;
     }
 
     .header-links a:hover {
-      text-decoration: underline;
+      background: rgba(255, 255, 255, 0.05);
+      text-decoration: none;
     }
 
     .content {
       flex: 1;
-      padding: 16px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
 
+    #openPanelBtn {
+      width: 100%;
+    }
+
     .status-section {
-      background: var(--surface);
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border-radius: var(--r-lg);
       padding: 12px;
-      font-size: 13px;
     }
 
     .status-section h3 {
-      margin: 0 0 8px;
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 500;
+      margin: 0 0 9px;
+      font-size: var(--fs-label);
+      font-weight: 700;
+      letter-spacing: var(--ls-label);
       text-transform: uppercase;
+      color: var(--muted);
     }
 
     .status-line {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 6px;
+      margin-bottom: 7px;
     }
 
     .status-line:last-child {
@@ -94,21 +109,23 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--muted);
+      background: var(--muted-dim);
       flex-shrink: 0;
     }
 
     .status-dot.online {
-      background: var(--accent-3);
+      background: var(--green);
+      box-shadow: 0 0 8px rgba(16, 185, 129, .6);
     }
 
     .status-dot.offline {
-      background: var(--danger);
+      background: var(--red);
     }
 
     .status-text {
-      font-size: 13px;
-      color: var(--text);
+      font-size: var(--fs-sm);
+      color: var(--text-soft);
+      overflow-wrap: anywhere;
     }
 
     .status-text.muted {
@@ -121,42 +138,36 @@
       gap: 8px;
     }
 
-    .btn-primary {
-      width: 100%;
-      padding: 10px;
-      background: var(--accent);
-      color: white;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
+    .quiet-link {
+      display: block;
+      padding: 8px;
+      text-align: center;
+      color: #8ab0ff;
+      text-decoration: none;
+      font-size: var(--fs-chip);
+      border-radius: var(--r-sm);
     }
 
-    .btn-primary:hover {
-      background: #ea6317;
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
+    .quiet-link:hover {
+      background: rgba(255, 255, 255, 0.04);
+      text-decoration: none;
     }
 
     .info-box {
-      background: rgba(248, 113, 113, 0.1);
-      border: 1px solid var(--danger);
-      border-radius: var(--radius);
+      background: var(--red-soft);
+      border: 1px solid var(--red-line);
+      border-radius: var(--r-md);
       padding: 12px;
-      font-size: 12px;
-      color: var(--danger);
+      font-size: var(--fs-chip);
+      color: #fca5a5;
       text-align: center;
+      line-height: 1.5;
     }
 
     .footer {
-      font-size: 12px;
+      font-size: var(--fs-chip);
       color: var(--muted);
-      padding: 8px 16px;
+      padding: 9px 14px;
       border-top: 1px solid var(--border);
       text-align: center;
       flex-shrink: 0;
@@ -165,8 +176,18 @@
 </head>
 <body>
   <div class="popup-container">
+    <div class="fieldbg"></div>
+
     <div class="header">
-      <h1 class="header-title">BD Lead AI</h1>
+      <span class="bd-logo">
+        <span class="bd-mark" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 128 128" fill="none">
+            <path d="M78 16 L34 74 H57 L50 112 L94 54 H71 Z" fill="#fff"
+                  stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <h1 class="header-title">BD Lead AI</h1>
+      </span>
       <div class="header-links">
         <a id="openOptions" title="Settings">⚙️</a>
         <a id="openWeb" title="Dashboard">📊</a>
@@ -176,14 +197,14 @@
     <div class="content">
       <!-- Main action -->
       <div id="panelAvailable">
-        <button id="openPanelBtn" class="btn-primary">Open BD Lead panel</button>
+        <button id="openPanelBtn" class="btn btn-primary">Open BD Lead panel</button>
       </div>
 
       <!-- Fallback when panel is not available -->
       <div id="panelUnavailable" style="display: none;" class="info-box">
         BD Lead side panel requires Chrome 116 or later.
         <br><br>
-        <a id="dashboardLink" href="#" style="color: var(--accent); text-decoration: none;">Visit the web dashboard →</a>
+        <a id="dashboardLink" href="#">Visit the web dashboard →</a>
       </div>
 
       <!-- Status section -->
@@ -205,7 +226,7 @@
 
       <!-- Quick links -->
       <div class="button-group">
-        <a href="#" id="connectionsLink" style="padding: 8px; text-align: center; color: var(--accent); text-decoration: none; font-size: 12px;">📋 Manage connections</a>
+        <a href="#" id="connectionsLink" class="quiet-link">Manage connections</a>
       </div>
     </div>
 

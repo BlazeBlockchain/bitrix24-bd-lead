@@ -17,7 +17,7 @@ export function Changelog() {
             overflow: 'auto',
             fontSize: 13,
             lineHeight: 1.6,
-            fontFamily: 'var(--mono)',
+            fontFamily: 'var(--font-mono)',
             whiteSpace: 'pre-wrap',
             wordWrap: 'break-word',
           }}

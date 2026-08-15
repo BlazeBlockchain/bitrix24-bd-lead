@@ -1,5 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
-  <!-- bd-lead logo mark. Keep in sync with design/mark.svg. -->
+  <!-- bd-lead logo mark: bolt glyph on the brand gradient rounded square.
+       Tokens mirror design/tokens.css --grad (#4a7cff -> #7c5cff 55% -> #22d3ee).
+       No text: the mark must stay legible when rasterized to 16px. -->
   <defs>
     <linearGradient id="bdGrad" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#4a7cff"/>
@@ -7,7 +9,14 @@
       <stop offset="1" stop-color="#22d3ee"/>
     </linearGradient>
   </defs>
+
   <rect width="128" height="128" rx="30" fill="url(#bdGrad)"/>
+
+  <!-- Bolt. Deliberately chunky: at 16px a slender glyph dissolves into
+       the gradient. Occupies ~60% of the square's height. -->
   <path d="M78 16 L34 74 H57 L50 112 L94 54 H71 Z"
-        fill="#ffffff" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+        fill="#ffffff"
+        stroke="#ffffff"
+        stroke-width="3"
+        stroke-linejoin="round"/>
 </svg>

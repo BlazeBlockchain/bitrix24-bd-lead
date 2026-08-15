@@ -160,12 +160,16 @@ const BDApi = {
   },
 
   /**
-   * HEAD /api/health to check if the backend is reachable.
+   * GET /api/health to check if the backend is reachable.
    * Never throws; always resolves to a boolean.
+   *
+   * Uses GET, not HEAD: the backend route only allows GET, so a HEAD request
+   * comes back 405 and the status dot never went green -- while logging a
+   * console error on every panel and popup open. The response body is tiny.
    */
   async health() {
     try {
-      const response = await fetch(`${API_BASE}/health`, { method: 'HEAD' });
+      const response = await fetch(`${API_BASE}/health`, { method: 'GET' });
       return response.ok;
     } catch (err) {
       // Network error or timeout

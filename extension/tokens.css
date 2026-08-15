@@ -1,170 +1,429 @@
 /**
- * Extension Design Tokens
- * Upstream source: web/src/index.css (custom properties and base component classes)
- * Base font size: 15px/1.5 (dashboard size, NOT the 13px popup legacy size).
- * All font-sizes minimum 12px (fixes the old 10-11px preview text defect).
+ * Extension Design Tokens + shared component classes
+ *
+ * Upstream: design/tokens.css. The token block below is GENERATED --
+ * do not hand-edit it. Edit design/tokens.css and run `make sync-tokens`.
+ * `make check-tokens` fails if this file drifts.
+ *
+ * Visual language: docs/design/ (README.md + styles.css).
+ * Deep near-black navy, glassmorphic panels, iris->violet->cyan gradient accent.
+ *
+ * All font-sizes are 12px or larger. See the body rule for why that needs care.
  */
 
+/* >>> generated: design tokens -- edit design/tokens.css, run `make sync-tokens` */
 :root {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface-2: #1c2330;
-  --border: #30363d;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #f97316;
-  --accent-2: #38bdf8;
-  --accent-3: #4ade80;
-  --danger: #f87171;
-  --radius: 8px;
-  --font-sans: system-ui, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* ---- surfaces ---- */
+  --bg: #05070d;
+  --bg-elev: #0a0e18;
+  --bg-2: #0a0e18;
+  --bg-3: rgba(255, 255, 255, 0.035);
+  --panel: rgba(255, 255, 255, 0.025);
+  --panel-2: rgba(255, 255, 255, 0.045);
+  --card: rgba(255, 255, 255, 0.025);
 
-  font: 15px/1.5 var(--font-sans);
+  /* ---- lines ---- */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  /* ---- brand ---- */
+  --accent: #4a7cff;
+  --accent2: #7c5cff;
+  --accent3: #22d3ee;
+  --grad: linear-gradient(135deg, #4a7cff 0%, #7c5cff 55%, #22d3ee 100%);
+
+  /* Button fill: the full --grad ends in cyan (#22d3ee), where white label text
+     drops to a 1.81 contrast ratio and is effectively unreadable. This variant
+     stops at the violet so the label sits on 3.74-4.35 throughout. Decorative
+     uses (the logo mark, accent rules) keep the full tri-colour --grad. */
+  --grad-btn: linear-gradient(135deg, #4a7cff 0%, #7c5cff 100%);
+  --grad-soft: linear-gradient(135deg, rgba(74, 124, 255, .18), rgba(124, 92, 255, .16) 55%, rgba(34, 211, 238, .14));
+  --grad-text: linear-gradient(100deg, #8ab0ff 0%, #b4a3ff 50%, #7cdff0 100%);
+
+  /* ---- text ramp ---- */
+  --text: #eaecf2;
+  --text-soft: #b0b6c4;
+  --muted: #6b7385;
+  --muted-dim: #4a5160;
+
+  /* ---- semantic ---- */
+  --green: #10b981;
+  --gold: #f5b841;
+  --red: #ef4444;
+
+  /* ---- accent tints ---- */
+  --accent-soft: rgba(74, 124, 255, 0.10);
+  --accent-line: rgba(124, 92, 255, 0.28);
+  --green-soft: rgba(16, 185, 129, 0.08);
+  --green-line: rgba(16, 185, 129, 0.20);
+  --gold-soft: rgba(245, 184, 65, 0.08);
+  --gold-line: rgba(245, 184, 65, 0.22);
+  --red-soft: rgba(239, 68, 68, 0.08);
+  --red-line: rgba(239, 68, 68, 0.22);
+
+  /* ---- type ---- */
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* type ramp — 12px floor enforced (see note above) */
+  --fs-chip: 12px;
+  --fs-label: 12px;
+  --fs-sm: 13px;
+  --fs-body: 14px;
+  --fs-section: 15px;
+  --fs-title: 16px;
+  --fs-h2: 20px;
+  --fs-h1: 26px;
+
+  --ls-base: -0.005em;
+  --ls-tight: -0.02em;
+  --ls-label: 0.14em;
+
+  /* ---- radius ---- */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+
+  /* ---- density ---- */
+  --pad: 22px;
+  --gap: 14px;
+
+  /* ---- depth ---- */
+  --glow-accent: 0 4px 16px rgba(74, 124, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --glow-accent-hover: 0 8px 28px rgba(124, 92, 255, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --sh-pop: 0 28px 70px rgba(0, 0, 0, 0.6), 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+[data-density="compact"] { --pad: 15px; --gap: 9px; }
+[data-density="comfy"]   { --pad: 28px; --gap: 19px; }
+/* <<< end generated */
+
+/* ---------- self-hosted fonts ----------
+   Deliberately local, not a font CDN: an extension page hitting fonts.gstatic.com
+   on every open is a privacy leak, breaks offline use, and draws Web Store review
+   scrutiny. Every font-family chain keeps a system fallback, so a missing file
+   degrades instead of breaking. */
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/inter-var-latin.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/jetbrains-mono-var-latin.woff2") format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: var(--font-ui);
   color: var(--text);
   background: var(--bg);
+  letter-spacing: var(--ls-base);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font-ui);
 
   /* Must be set EXPLICITLY, not left to inherit from :root.
-     Chrome's user-agent stylesheet for extension pages shrinks body text to 0.75em,
-     so a body that only inherits computes to 11.25px even though :root says 15px —
-     reintroducing exactly the sub-12px text this feature exists to remove (NFR-008).
+     Chrome's user-agent stylesheet for extension pages shrinks body text to
+     0.75em, so a body that only inherits computes to 11.25px even though :root
+     says 15px -- reintroducing exactly the sub-12px text this project bans.
      Verified in a real browser: html=15px, body=11.25px before this rule. */
-  font: 15px/1.5 var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.55;
 }
 
-/* Buttons */
+/* Atmospheric glow behind a surface. Purely decorative and pointer-transparent. */
+.fieldbg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(124, 92, 255, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 88% 25%, rgba(34, 211, 238, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 45% at 12% 70%, rgba(74, 124, 255, 0.07) 0%, transparent 60%);
+}
+
+/* ---------- buttons ---------- */
 .btn {
-  font: inherit;
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 8px 14px;
-  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: var(--ls-base);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.btn:hover {
-  background: var(--surface);
-  border-color: var(--accent);
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  white-space: nowrap;
+  transition: transform .2s ease, box-shadow .25s ease, background .2s ease,
+              border-color .2s ease, color .2s ease;
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: white;
-  border: none;
+  background: var(--grad-btn);
+  color: #fff;
+  box-shadow: var(--glow-accent);
 }
 
-.btn-primary:hover {
-  background: #ea6317;
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--glow-accent-hover);
 }
 
-.btn-primary:disabled {
-  opacity: 0.6;
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-ghost {
+  background: var(--panel);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--panel-2);
+  border-color: var(--border-strong);
+}
+
+.btn-quiet {
+  background: transparent;
+  color: var(--text-soft);
+  border-color: transparent;
+}
+
+.btn-quiet:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.btn:disabled {
+  opacity: .45;
   cursor: not-allowed;
+  transform: none;
 }
 
-.btn-secondary {
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--border);
+.btn-sm {
+  padding: 7px 12px;
+  font-size: var(--fs-chip);
+  border-radius: var(--r-sm);
 }
 
-/* Form controls */
-input, select, textarea {
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
   font: inherit;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 8px 10px;
-  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  color: #8ab0ff;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  text-decoration: none;
+}
+
+/* ---------- form controls ---------- */
+input, select, textarea {
   width: 100%;
-  box-sizing: border-box;
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  transition: border-color .2s ease, background .2s ease;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--muted-dim);
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+  border-color: var(--accent-line);
+  background: rgba(0, 0, 0, 0.42);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 64px;
 }
 
 label {
-  font-size: 13px;
-  color: var(--muted);
   display: block;
+  font-size: var(--fs-chip);
+  font-weight: 600;
+  color: var(--muted);
   margin-bottom: 6px;
-  font-weight: 500;
 }
 
-/* Card container */
-.card {
-  background: var(--surface);
+/* ---------- surfaces ---------- */
+.panel {
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
-/* Status pill */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 14px;
+}
+
+/* ---------- chips, tags, labels ---------- */
+.chip {
+  font-family: var(--font-mono);
+  font-size: var(--fs-chip);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  padding: 4px 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  background: rgba(255, 255, 255, 0.03);
+  white-space: nowrap;
+}
+
+.chip-accent {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: #b4a3ff;
+}
+
+.chip-live {
+  background: var(--green-soft);
+  border-color: var(--green-line);
+  color: #6ee7b7;
+}
+
+.label {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.gtext {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: var(--fs-chip);
+}
+
+/* ---------- status ---------- */
 .status {
-  padding: 12px;
-  border-radius: var(--radius);
-  font-size: 14px;
+  padding: 11px 13px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
   line-height: 1.5;
 }
 
 .status-loading {
-  background: var(--surface-2);
-  color: var(--text);
-  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: #b4a3ff;
+  border: 1px solid var(--accent-line);
 }
 
 .status-success {
-  background: rgba(74, 222, 128, 0.1);
-  color: var(--accent-3);
-  border: 1px solid var(--accent-3);
+  background: var(--green-soft);
+  color: #6ee7b7;
+  border: 1px solid var(--green-line);
 }
 
 .status-error {
-  background: rgba(248, 113, 113, 0.1);
-  color: var(--danger);
-  border: 1px solid var(--danger);
+  background: var(--red-soft);
+  color: #fca5a5;
+  border: 1px solid var(--red-line);
 }
 
-/* Utility classes */
-.muted {
+/* ---------- inert sections ----------
+   A brief section the backend cannot populate under the current contract.
+   Deliberately NOT a spinner or shimmer: those imply data is arriving. This is
+   a permanent, honest "not available", and it never shows invented values. */
+.inert {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  padding: 12px;
+  color: var(--muted-dim);
+}
+
+.inert-title {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
   color: var(--muted);
-  font-size: 12px;
+  margin: 0 0 4px;
 }
 
-.pill {
-  display: inline-block;
-  background: var(--surface-2);
+.inert-note {
+  font-size: var(--fs-chip);
   color: var(--muted);
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  white-space: nowrap;
+  margin: 0;
 }
 
-/* Field group */
+/* ---------- logo ---------- */
+.bd-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  letter-spacing: var(--ls-tight);
+}
+
+.bd-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: var(--grad);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 10px rgba(124, 92, 255, .35), inset 0 1px 0 rgba(255, 255, 255, .25);
+  flex-shrink: 0;
+}
+
+/* ---------- layout helpers ---------- */
 .field {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .field-row {
@@ -176,10 +435,78 @@ label {
 /* Collapse the two-up row only when it genuinely stops fitting.
    The breakpoint is deliberately narrow: a side panel is typically 320-500px wide,
    so a 600px breakpoint would collapse EVERY panel to one column and waste the
-   horizontal space this feature exists to provide. At 360px+ two fields of ~170px
+   horizontal space the panel exists to provide. At 360px+ two fields of ~170px
    still fit comfortably. */
 @media (max-width: 360px) {
   .field-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Long unbroken strings (URLs, company names) must wrap rather than force the
+   panel to scroll sideways -- the panel is user-resizable and must never
+   scroll horizontally at any width. */
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.scrollable {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, .14) transparent;
+}
+
+.scrollable::-webkit-scrollbar {
+  width: 9px;
+}
+
+.scrollable::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ---------- motion ----------
+   Transform-only entrance: visibility is never gated on opacity, so content
+   cannot get stuck invisible if the animation timeline is throttled or frozen. */
+@keyframes risein {
+  from { transform: translateY(10px); }
+  to { transform: translateY(0); }
+}
+
+.risein {
+  animation: risein .5s cubic-bezier(.2, .7, .3, 1) both;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin .9s linear infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .5; transform: scale(1.4); }
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px rgba(16, 185, 129, .6);
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
   }
 }

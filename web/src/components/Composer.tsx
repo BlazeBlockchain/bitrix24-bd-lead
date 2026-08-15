@@ -148,10 +148,10 @@ export const Composer: React.FC = () => {
             <button type="button" className="secondary" onClick={handleReset}>Reset</button>
           </div>
 
-          {error && <div className="status" style={{ color: 'var(--danger)', marginTop: 8 }}>{error}</div>}
+          {error && <div className="status" style={{ color: 'var(--red)', marginTop: 8 }}>{error}</div>}
           {result && (
             <div style={{ marginTop: 12 }}>
-              <div className="status" style={{ borderColor: 'var(--accent-3)' }}>
+              <div className="status" style={{ borderColor: 'var(--accent3)' }}>
                 ✅ Success. See Preview + Result below.
               </div>
               <div className="result" style={{ marginTop: 8 }}>

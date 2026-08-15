@@ -61,8 +61,10 @@ function checkPanelSupport() {
  */
 async function checkApiStatus() {
   try {
+    // GET, not HEAD: the backend route only allows GET, so HEAD returned 405 —
+    // the dot never went green and every popup open logged a console error.
     const response = await fetch(`${API_BASE}/health`, {
-      method: 'HEAD',
+      method: 'GET',
     });
     DOM.apiDot.classList.add(response.ok ? 'online' : 'offline');
     DOM.apiText.textContent = response.ok ? 'API reachable' : 'API unreachable';

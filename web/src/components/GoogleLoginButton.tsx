@@ -87,7 +87,7 @@ export function GoogleLoginButton({ onSuccess, onError }: GoogleLoginButtonProps
   if (error) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-        <p style={{ color: 'var(--danger)' }}>{error}</p>
+        <p style={{ color: 'var(--red)' }}>{error}</p>
       </div>
     );
   }

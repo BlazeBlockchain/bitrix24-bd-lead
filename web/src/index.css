@@ -1,142 +1,387 @@
-/* BD Lead Assistant - Dark theme CSS vars + layout (mirrors UI_UX.md + vanguard patterns) */
-:root {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface-2: #1c2330;
-  --border: #30363d;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #f97316;
-  --accent-2: #38bdf8;
-  --accent-3: #4ade80;
-  --danger: #f87171;
-  --radius: 8px;
-  --font-sans: system-ui, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+/**
+ * BD Lead Assistant — base styles
+ *
+ * Upstream: design/tokens.css. The token block below is GENERATED —
+ * do not hand-edit it. Edit design/tokens.css and run `make sync-tokens`.
+ * `make check-tokens` fails if this file drifts from the extension's copy.
+ *
+ * Visual language: docs/design/ (README.md + styles.css).
+ */
 
-  font: 15px/1.5 var(--font-sans);
+/* >>> generated: design tokens -- edit design/tokens.css, run `make sync-tokens` */
+:root {
+  /* ---- surfaces ---- */
+  --bg: #05070d;
+  --bg-elev: #0a0e18;
+  --bg-2: #0a0e18;
+  --bg-3: rgba(255, 255, 255, 0.035);
+  --panel: rgba(255, 255, 255, 0.025);
+  --panel-2: rgba(255, 255, 255, 0.045);
+  --card: rgba(255, 255, 255, 0.025);
+
+  /* ---- lines ---- */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  /* ---- brand ---- */
+  --accent: #4a7cff;
+  --accent2: #7c5cff;
+  --accent3: #22d3ee;
+  --grad: linear-gradient(135deg, #4a7cff 0%, #7c5cff 55%, #22d3ee 100%);
+
+  /* Button fill: the full --grad ends in cyan (#22d3ee), where white label text
+     drops to a 1.81 contrast ratio and is effectively unreadable. This variant
+     stops at the violet so the label sits on 3.74-4.35 throughout. Decorative
+     uses (the logo mark, accent rules) keep the full tri-colour --grad. */
+  --grad-btn: linear-gradient(135deg, #4a7cff 0%, #7c5cff 100%);
+  --grad-soft: linear-gradient(135deg, rgba(74, 124, 255, .18), rgba(124, 92, 255, .16) 55%, rgba(34, 211, 238, .14));
+  --grad-text: linear-gradient(100deg, #8ab0ff 0%, #b4a3ff 50%, #7cdff0 100%);
+
+  /* ---- text ramp ---- */
+  --text: #eaecf2;
+  --text-soft: #b0b6c4;
+  --muted: #6b7385;
+  --muted-dim: #4a5160;
+
+  /* ---- semantic ---- */
+  --green: #10b981;
+  --gold: #f5b841;
+  --red: #ef4444;
+
+  /* ---- accent tints ---- */
+  --accent-soft: rgba(74, 124, 255, 0.10);
+  --accent-line: rgba(124, 92, 255, 0.28);
+  --green-soft: rgba(16, 185, 129, 0.08);
+  --green-line: rgba(16, 185, 129, 0.20);
+  --gold-soft: rgba(245, 184, 65, 0.08);
+  --gold-line: rgba(245, 184, 65, 0.22);
+  --red-soft: rgba(239, 68, 68, 0.08);
+  --red-line: rgba(239, 68, 68, 0.22);
+
+  /* ---- type ---- */
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* type ramp — 12px floor enforced (see note above) */
+  --fs-chip: 12px;
+  --fs-label: 12px;
+  --fs-sm: 13px;
+  --fs-body: 14px;
+  --fs-section: 15px;
+  --fs-title: 16px;
+  --fs-h2: 20px;
+  --fs-h1: 26px;
+
+  --ls-base: -0.005em;
+  --ls-tight: -0.02em;
+  --ls-label: 0.14em;
+
+  /* ---- radius ---- */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+
+  /* ---- density ---- */
+  --pad: 22px;
+  --gap: 14px;
+
+  /* ---- depth ---- */
+  --glow-accent: 0 4px 16px rgba(74, 124, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --glow-accent-hover: 0 8px 28px rgba(124, 92, 255, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --sh-pop: 0 28px 70px rgba(0, 0, 0, 0.6), 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+[data-density="compact"] { --pad: 15px; --gap: 9px; }
+[data-density="comfy"]   { --pad: 28px; --gap: 19px; }
+/* <<< end generated */
+
+/* Self-hosted, not a font CDN — keeps the app working offline and avoids a
+   third-party request on every page load. System fallbacks stay in the chain. */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-var-latin.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-var-latin.woff2") format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  letter-spacing: var(--ls-base);
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  font-size: var(--fs-body);
+}
+
+/* Atmospheric glow, fixed behind everything. Decorative and inert. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(124, 92, 255, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 88% 25%, rgba(34, 211, 238, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 45% at 12% 70%, rgba(74, 124, 255, 0.07) 0%, transparent 60%);
 }
 
 #root {
   min-height: 100svh;
+}
+
+h1, h2, h3, h4 {
+  letter-spacing: var(--ls-tight);
+  margin: 0 0 12px;
+}
+
+h1 { font-size: var(--fs-h1); font-weight: 700; }
+h2 { font-size: var(--fs-h2); font-weight: 650; }
+h3 { font-size: var(--fs-title); font-weight: 600; }
+h4 { font-size: var(--fs-section); font-weight: 600; }
+
+a {
+  color: #8ab0ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- app shell: 232px sidebar + main ---------- */
+.app-shell {
+  display: flex;
+  min-height: 100svh;
+}
+
+.app-sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px;
+  gap: 18px;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0; /* lets long content shrink instead of forcing a page-wide scroll */
   display: flex;
   flex-direction: column;
 }
 
-/* Header / Nav */
-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 0 24px;
+.app-topbar {
+  height: 56px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 56px;
+  gap: 12px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
+  background: rgba(5, 7, 13, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   z-index: 10;
 }
 
-header .logo {
+.app-topbar h1 {
+  font-size: var(--fs-title);
   font-weight: 600;
-  font-size: 18px;
+  margin: 0;
+}
+
+.bd-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  font-size: var(--fs-section);
+  letter-spacing: var(--ls-tight);
   color: var(--text);
+}
+
+.bd-logo:hover {
   text-decoration: none;
 }
 
-nav {
+.bd-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  background: var(--grad);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 10px rgba(124, 92, 255, .35), inset 0 1px 0 rgba(255, 255, 255, .25);
+  flex-shrink: 0;
+}
+
+.sidebar-nav {
   display: flex;
-  gap: 16px;
-  align-items: center;
+  flex-direction: column;
+  gap: 2px;
 }
 
-nav a {
-  color: var(--muted);
-  text-decoration: none;
-  padding: 6px 10px;
-  border-radius: var(--radius);
-  font-size: 14px;
-}
-
-nav a:hover,
-nav a.active {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
-.user-pill {
-  font-size: 12px;
-  background: var(--surface-2);
-  padding: 4px 10px;
-  border-radius: 999px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-button {
-  font: inherit;
-  background: var(--accent);
-  color: white;
-  border: none;
-  padding: 8px 14px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  font-size: 14px;
+.sidebar-nav a {
+  color: var(--text-soft);
+  font-size: var(--fs-sm);
   font-weight: 500;
+  padding: 9px 11px;
+  border-radius: var(--r-md);
+  transition: background .2s ease, color .2s ease;
+}
+
+.sidebar-nav a:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.sidebar-nav a.active {
+  background: var(--grad-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--fs-chip);
+  color: var(--muted);
+}
+
+/* ---------- page ---------- */
+.page {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ---------- controls ---------- */
+button {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: var(--ls-base);
+  background: var(--grad-btn);
+  color: #fff;
+  border: 1px solid transparent;
+  padding: 10px 16px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  box-shadow: var(--glow-accent);
+  transition: transform .2s ease, box-shadow .25s ease, background .2s ease,
+              border-color .2s ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--glow-accent-hover);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 button.secondary {
-  background: var(--surface-2);
+  background: var(--panel);
   color: var(--text);
-  border: 1px solid var(--border);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+button.secondary:hover:not(:disabled) {
+  background: var(--panel-2);
+  border-color: var(--border-strong);
+  transform: none;
+  box-shadow: none;
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: .45;
   cursor: not-allowed;
+  transform: none;
 }
 
 input, select, textarea {
-  font: inherit;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 8px 10px;
-  border-radius: var(--radius);
   width: 100%;
-  box-sizing: border-box;
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  transition: border-color .2s ease, background .2s ease;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--muted-dim);
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--accent-line);
+  background: rgba(0, 0, 0, 0.42);
 }
 
 label {
-  font-size: 12px;
-  color: var(--muted);
   display: block;
-  margin-bottom: 4px;
+  font-size: var(--fs-chip);
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
 }
 
+/* ---------- surfaces ---------- */
 .card {
-  background: var(--surface);
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-radius: var(--r-lg);
+  padding: var(--pad);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  margin-bottom: var(--gap);
 }
 
 .split {
@@ -145,40 +390,165 @@ label {
   gap: 24px;
 }
 
-@media (max-width: 900px) {
-  .split {
-    grid-template-columns: 1fr;
-  }
+.user-pill {
+  font-size: var(--fs-chip);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: var(--text-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
+.chip {
+  font-family: var(--font-mono);
+  font-size: var(--fs-chip);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  padding: 4px 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  background: rgba(255, 255, 255, 0.03);
+  white-space: nowrap;
+}
+
+.chip-live {
+  background: var(--green-soft);
+  border-color: var(--green-line);
+  color: #6ee7b7;
+}
+
+.label {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.gtext {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ---------- preview ---------- */
 .preview {
-  background: var(--surface-2);
+  background: var(--panel-2);
 }
 
 .preview h3 {
   margin: 0 0 8px;
-  font-size: 14px;
-  color: var(--accent);
+  font-size: var(--fs-section);
+  color: var(--text);
 }
 
 .task {
-  border-left: 3px solid var(--accent-3);
+  border-left: 2px solid;
+  border-image: var(--grad) 1;
   padding-left: 12px;
   margin-bottom: 12px;
 }
 
 .result {
-  background: var(--surface);
-  border: 1px solid var(--accent-3);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--green-line);
   padding: 12px;
-  border-radius: var(--radius);
-  font-family: var(--mono);
-  font-size: 13px;
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .stub-note {
-  font-size: 12px;
+  font-size: var(--fs-chip);
   color: var(--muted);
   font-style: italic;
+}
+
+/* ---------- inert sections ----------
+   A brief section the backend cannot populate under the current contract.
+   Deliberately NOT a spinner or shimmer: those imply data is arriving. This is
+   a permanent, honest "not available", and it never shows invented values. */
+.inert {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  padding: 12px;
+  margin-bottom: var(--gap);
+}
+
+.inert-title {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.inert-note {
+  font-size: var(--fs-chip);
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ---------- motion ----------
+   Transform-only: visibility is never gated on opacity, so content cannot get
+   stuck invisible if the animation timeline is throttled or frozen. */
+@keyframes risein {
+  from { transform: translateY(10px); }
+  to { transform: translateY(0); }
+}
+
+.risein {
+  animation: risein .5s cubic-bezier(.2, .7, .3, 1) both;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+  }
+
+  .sidebar-footer {
+    margin-top: 0;
+    margin-left: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
 }

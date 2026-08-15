@@ -187,7 +187,7 @@ export function UsageView() {
                       }}
                     >
                       <td style={{ padding: '6px 8px' }}>
-                        <code style={{ fontSize: 11 }}>{item.model.split('-').pop() || item.model}</code>
+                        <code style={{ fontSize: 12 }}>{item.model.split('-').pop() || item.model}</code>
                       </td>
                       <td style={{ textAlign: 'right', padding: '6px 8px' }}>
                         {item.input_tokens}
@@ -198,7 +198,7 @@ export function UsageView() {
                       <td style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 'bold' }}>
                         ${(item.estimated_cost_cents / 100).toFixed(2)}
                       </td>
-                      <td style={{ padding: '6px 8px', opacity: 0.7, fontSize: 11 }}>
+                      <td style={{ padding: '6px 8px', opacity: 0.7, fontSize: 12 }}>
                         {dateStr} {timeStr}
                       </td>
                     </tr>

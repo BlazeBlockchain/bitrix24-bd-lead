@@ -1,0 +1,109 @@
+/* ============================================================
+   bd-lead — DESIGN TOKEN UPSTREAM
+   ------------------------------------------------------------
+   This file is the ONLY place a design token value is edited.
+
+   Transcribed from docs/design/styles.css, which is the design source
+   of truth. That file is a design deliverable, not a build input: this
+   file is the committed, machine-readable transcription of it.
+
+   Consumers (generated — do not hand-edit their token regions):
+     web/src/index.css
+     extension/tokens.css
+
+   After editing this file:   make sync-tokens
+   To verify:                 make check-tokens
+
+   NOTE ON TYPE SIZES: the handoff specifies chips at 10.5px, labels
+   at 10px and tags at 11px. This project has a hard 12px minimum
+   font size (Chrome's UA stylesheet already shrinks extension-page
+   body text by 0.75, and sub-12px type was a shipped defect once).
+   The ramp below is rescaled upward from 12px. The floor wins.
+   ============================================================ */
+
+:root {
+  /* ---- surfaces ---- */
+  --bg: #05070d;
+  --bg-elev: #0a0e18;
+  --bg-2: #0a0e18;
+  --bg-3: rgba(255, 255, 255, 0.035);
+  --panel: rgba(255, 255, 255, 0.025);
+  --panel-2: rgba(255, 255, 255, 0.045);
+  --card: rgba(255, 255, 255, 0.025);
+
+  /* ---- lines ---- */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  /* ---- brand ---- */
+  --accent: #4a7cff;
+  --accent2: #7c5cff;
+  --accent3: #22d3ee;
+  --grad: linear-gradient(135deg, #4a7cff 0%, #7c5cff 55%, #22d3ee 100%);
+
+  /* Button fill: the full --grad ends in cyan (#22d3ee), where white label text
+     drops to a 1.81 contrast ratio and is effectively unreadable. This variant
+     stops at the violet so the label sits on 3.74-4.35 throughout. Decorative
+     uses (the logo mark, accent rules) keep the full tri-colour --grad. */
+  --grad-btn: linear-gradient(135deg, #4a7cff 0%, #7c5cff 100%);
+  --grad-soft: linear-gradient(135deg, rgba(74, 124, 255, .18), rgba(124, 92, 255, .16) 55%, rgba(34, 211, 238, .14));
+  --grad-text: linear-gradient(100deg, #8ab0ff 0%, #b4a3ff 50%, #7cdff0 100%);
+
+  /* ---- text ramp ---- */
+  --text: #eaecf2;
+  --text-soft: #b0b6c4;
+  --muted: #6b7385;
+  --muted-dim: #4a5160;
+
+  /* ---- semantic ---- */
+  --green: #10b981;
+  --gold: #f5b841;
+  --red: #ef4444;
+
+  /* ---- accent tints ---- */
+  --accent-soft: rgba(74, 124, 255, 0.10);
+  --accent-line: rgba(124, 92, 255, 0.28);
+  --green-soft: rgba(16, 185, 129, 0.08);
+  --green-line: rgba(16, 185, 129, 0.20);
+  --gold-soft: rgba(245, 184, 65, 0.08);
+  --gold-line: rgba(245, 184, 65, 0.22);
+  --red-soft: rgba(239, 68, 68, 0.08);
+  --red-line: rgba(239, 68, 68, 0.22);
+
+  /* ---- type ---- */
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* type ramp — 12px floor enforced (see note above) */
+  --fs-chip: 12px;
+  --fs-label: 12px;
+  --fs-sm: 13px;
+  --fs-body: 14px;
+  --fs-section: 15px;
+  --fs-title: 16px;
+  --fs-h2: 20px;
+  --fs-h1: 26px;
+
+  --ls-base: -0.005em;
+  --ls-tight: -0.02em;
+  --ls-label: 0.14em;
+
+  /* ---- radius ---- */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+
+  /* ---- density ---- */
+  --pad: 22px;
+  --gap: 14px;
+
+  /* ---- depth ---- */
+  --glow-accent: 0 4px 16px rgba(74, 124, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --glow-accent-hover: 0 8px 28px rgba(124, 92, 255, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --sh-pop: 0 28px 70px rgba(0, 0, 0, 0.6), 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+[data-density="compact"] { --pad: 15px; --gap: 9px; }
+[data-density="comfy"]   { --pad: 28px; --gap: 19px; }

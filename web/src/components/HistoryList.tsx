@@ -118,7 +118,7 @@ export const HistoryList: React.FC = () => {
         </div>
       </div>
 
-      {error && <div className="status" style={{ color: 'var(--danger)' }}>{error}</div>}
+      {error && <div className="status" style={{ color: 'var(--red)' }}>{error}</div>}
       {loading && <div className="stub-note">Loading history…</div>}
 
       {displayItems.length === 0 && (
@@ -143,7 +143,7 @@ export const HistoryList: React.FC = () => {
                 <button className="secondary" onClick={() => applySimilar(item)} style={{ fontSize: 12, padding: '4px 10px' }}>
                   Use similar
                 </button>
-                <button onClick={() => showDetail(item)} style={{ fontSize: 11 }}>Detail</button>
+                <button onClick={() => showDetail(item)} style={{ fontSize: 12 }}>Detail</button>
               </div>
             </div>
           </div>

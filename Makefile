@@ -1,4 +1,4 @@
-.PHONY: help version sync-versions bump-patch bump-minor bump-major release encrypt-skill dev up down build-web logs stop clean deploy-staging deploy-prod
+.PHONY: help version sync-versions bump-patch bump-minor bump-major release encrypt-skill dev up down build-web logs stop clean deploy-staging deploy-prod sync-tokens check-tokens build-icons check-icons
 
 # Read the current version from VERSION file
 VERSION := $(shell cat VERSION)
@@ -18,6 +18,12 @@ help:
 	@echo "  bump-minor        Increment minor version, sync, and update CHANGELOG"
 	@echo "  bump-major        Increase major version, sync, and update CHANGELOG"
 	@echo "  release           Commit and tag the release (assumes version already bumped + CHANGELOG edited)"
+	@echo ""
+	@echo "Design system:"
+	@echo "  sync-tokens       Regenerate token blocks from design/tokens.css"
+	@echo "  check-tokens      Fail if the token blocks drifted or legacy colors returned"
+	@echo "  build-icons       Rasterize design/mark.svg to extension/icons/*.png"
+	@echo "  check-icons       Validate the committed icons without regenerating"
 	@echo ""
 	@echo "Skill IP:"
 	@echo "  encrypt-skill     Run the skill encryption script"
@@ -44,6 +50,18 @@ sync-versions:
 	@echo "Syncing version $(VERSION) to all components..."
 	@python3 scripts/sync_versions.py
 	@echo "Version sync complete!"
+
+sync-tokens:
+	@python3 scripts/sync_design_tokens.py
+
+check-tokens:
+	@python3 scripts/sync_design_tokens.py --check
+
+build-icons:
+	@python3 scripts/build_icons.py
+
+check-icons:
+	@python3 scripts/build_icons.py --check
 
 bump-patch:
 	@python3 scripts/bump_version.py patch

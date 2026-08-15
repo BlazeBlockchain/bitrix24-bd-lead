@@ -13,38 +13,69 @@ import { getStoredToken, getStoredUser } from './api/auth';
 import './App.css';
 import { useState, useEffect } from 'react';
 
-function Header() {
+/** The bd-lead mark: bolt on the brand gradient. Mirrors design/mark.svg. */
+function BdMark() {
+  return (
+    <span className="bd-mark" aria-hidden="true">
+      <svg width="15" height="15" viewBox="0 0 128 128" fill="none">
+        <path
+          d="M78 16 L34 74 H57 L50 112 L94 54 H71 Z"
+          fill="#fff"
+          stroke="#fff"
+          strokeWidth="3"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+const NAV_ITEMS = [
+  { to: '/', label: 'Dashboard', end: true },
+  { to: '/new', label: 'New lead' },
+  { to: '/history', label: 'History' },
+  { to: '/connections', label: 'Connections' },
+  { to: '/usage', label: 'Usage' },
+  { to: '/memory', label: 'Memory' },
+  { to: '/account', label: 'Account' },
+];
+
+function Sidebar() {
   const { isLoggedIn, user, logout, currentProvider } = useAppStore();
 
   return (
-    <header>
-      <Link to="/" className="logo">BD Lead</Link>
+    <aside className="app-sidebar">
+      <Link to="/" className="bd-logo">
+        <BdMark />
+        BD Lead
+      </Link>
 
-      <nav>
-        {isLoggedIn && (
-          <>
-            <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''}>Dashboard</NavLink>
-            <NavLink to="/new" className={({ isActive }) => isActive ? 'active' : ''}>New Lead</NavLink>
-            <NavLink to="/history" className={({ isActive }) => isActive ? 'active' : ''}>History</NavLink>
-            <NavLink to="/connections" className={({ isActive }) => isActive ? 'active' : ''}>Connections</NavLink>
-            <NavLink to="/usage" className={({ isActive }) => isActive ? 'active' : ''}>Usage</NavLink>
-            <NavLink to="/memory" className={({ isActive }) => isActive ? 'active' : ''}>Memory</NavLink>
-            <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>Account</NavLink>
-          </>
-        )}
-      </nav>
+      {isLoggedIn && (
+        <nav className="sidebar-nav">
+          {NAV_ITEMS.map(({ to, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) => (isActive ? 'active' : '')}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="sidebar-footer">
         {isLoggedIn && user ? (
           <>
             <span className="user-pill">{user.name} · {currentProvider}</span>
-            <button className="secondary" onClick={logout} style={{ padding: '4px 10px', fontSize: 12 }}>Logout</button>
+            <button className="secondary" onClick={logout}>Logout</button>
           </>
         ) : (
           <Link to="/login"><button>Sign in with Google</button></Link>
         )}
       </div>
-    </header>
+    </aside>
   );
 }
 
@@ -98,8 +129,10 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Header />
-      <Routes>
+      <div className="app-shell">
+        <Sidebar />
+        <div className="app-main">
+          <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/new" element={<RequireAuth><Composer /></RequireAuth>} />
@@ -129,12 +162,14 @@ function App() {
           </RequireAuth>
         } />
         <Route path="/changelog" element={<Changelog />} />
-        <Route path="*" element={<div className="page"><p>Page not found. <Link to="/">Go home</Link></p></div>} />
-      </Routes>
-      <footer style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-        {version && <>v{version} • </>}
-        <Link to="/changelog">Changelog</Link>
-      </footer>
+            <Route path="*" element={<div className="page"><p>Page not found. <Link to="/">Go home</Link></p></div>} />
+          </Routes>
+          <footer className="app-footer">
+            {version && <>v{version} • </>}
+            <Link to="/changelog">Changelog</Link>
+          </footer>
+        </div>
+      </div>
     </BrowserRouter>
   );
 }

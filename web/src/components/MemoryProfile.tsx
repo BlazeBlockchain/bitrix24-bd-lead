@@ -165,7 +165,7 @@ export const MemoryProfile: React.FC = () => {
                     disabled={saving}
                     style={{ width: '100%' }}
                   />
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>1st follow-up</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>1st follow-up</div>
                 </div>
                 <span style={{ color: 'var(--muted)' }}>→</span>
                 <div style={{ flex: 1 }}>
@@ -177,7 +177,7 @@ export const MemoryProfile: React.FC = () => {
                     disabled={saving}
                     style={{ width: '100%' }}
                   />
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>2nd follow-up</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>2nd follow-up</div>
                 </div>
                 <span style={{ color: 'var(--muted)' }}>→</span>
                 <div style={{ flex: 1 }}>
@@ -189,7 +189,7 @@ export const MemoryProfile: React.FC = () => {
                     disabled={saving}
                     style={{ width: '100%' }}
                   />
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>3rd follow-up</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>3rd follow-up</div>
                 </div>
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
@@ -239,7 +239,7 @@ export const MemoryProfile: React.FC = () => {
                     >
                       <p style={{ margin: '0 0 8px 0', fontSize: 13 }}>{sample.opener}</p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                           Status: <strong>{sample.outcome || 'pending'}</strong>
                           {sample.accepted_at && ` • ${new Date(sample.accepted_at).toLocaleDateString()}`}
                         </span>
