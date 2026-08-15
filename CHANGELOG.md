@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-15
+
+Feature 009 — enrich/design parity. The four brief sections that 0.2.0 shipped inert now carry real
+model output.
+
+### Added
+- **Buying signal, contact confidence, outreach email and CRM entry are populated.** 0.2.0 rendered
+  these four as styled "not available yet" blocks, because fabricating a confidence pill would have
+  contradicted the product's own trust principle. The gap was in the output contract, not the
+  model's capability — `_build_prompt` already injected the full skill methodology and then asked
+  for three fields, ending with "no extra keys". Widening that shape is the whole feature.
+- **Anti-fabrication is now an explicit contract term.** The model is told to omit a source or a
+  date it cannot support rather than guess, and never to complete a partial date. Server-side,
+  `contact_confidence.level` is enum-validated, a signal dated in the future is dropped, and any
+  field that fails validation is omitted so its section falls back to the 0.2.0 inert presentation.
+  Absent, malformed and out-of-range are one case; nothing is ever derived client-side.
+- **The outreach email is copyable in one action** from both the web app and the side panel.
+- `LLM_PRICE_CENTS_PER_MTOK` in config — a per-model cost table, so a price change is a settings
+  change rather than a code change, and an unpriced model is never silently free.
+
+### Changed
+- **The outreach email supersedes the "Suggested Opener" card** on both surfaces when one is
+  present. Two different openings for the same lead invited sending a message that contradicted the
+  one below it. `personalized_opener` is unchanged in the response and still builds the CRM deal
+  comment; the card remains the email's fallback when no valid email was returned.
+- Haiku's `max_tokens` 800 → 4096, matching Gemini. The widened contract would not fit in 800, which
+  would have collapsed the fallback chain to mock on every Gemini failure.
+- Enrichment costs roughly 12% more per lead (measured: input +14.8%, output +52.4%, total +11.7%,
+  latency +0.8s). Output is the small half of this request — the skill methodology dominates the
+  prompt — so the richer brief is cheap. Recorded in `specs/009-enrich-brief-parity/plan.md`.
+
+### Fixed
+- **The model fabricated signal dates.** A signal reading "hired a new CTO in March" — no year —
+  produced `2024-03-15`, inventing both the year and the day. The server only rejected *future*
+  dates, so a confidently-wrong past date passed. Partial dates must now be omitted, never
+  completed.
+- **The confidence pill was decorative.** Every lead scored `high`, including one whose signal was
+  "something changed recently", with circular reasons ("Contact and role explicitly provided in the
+  lead brief") — the model was assessing whether the form had been filled in. It now judges role fit
+  against the pain point, and a brief too vague to judge yields `low`.
+- **The usage ledger recorded fabricated token counts.** Every real call logged a hardcoded 400 in /
+  250 out and a flat 1 cent, against a measured ~5,950 in / ~2,900 billable out — input
+  under-recorded roughly 15×, leaving the daily budget guard watching a number unrelated to spend.
+  Real provider counts are now recorded, priced from config, and accumulated as a float so that
+  sub-cent calls actually move the total instead of rounding to zero.
+- Both providers now log *why* they were skipped. An unset API key and a failing provider were both
+  a bare `None`, which is how an empty `ANTHROPIC_API_KEY` went unnoticed.
+- A missing f-string prefix emitted a literal `{signal_type}` to users on the mock path.
+
+
 ## [0.2.0] - 2026-08-15
 
 ### Added
