@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-15
+
 ### Added
+- **Design system applied across every surface** — the web app, the extension side panel, the
+  launcher popup, and the options page now render the `docs/design/` visual language:
+  near-black navy (`#05070d`), translucent glass panels, hairline borders, the 8/10/14/18 radius
+  ramp, and self-hosted Inter + JetBrains Mono.
+- `design/tokens.css` — a single tracked upstream for every design token, with
+  `scripts/sync_design_tokens.py` generating the token blocks in `web/src/index.css` and
+  `extension/tokens.css`. `make check-tokens` fails on drift *and* on any reappearance of the
+  retired palette, so the two files can no longer diverge unnoticed.
+- `design/mark.svg` + `scripts/build_icons.py` — the real logo mark (a bolt on the brand gradient)
+  and a rasterizer that drives headless Chrome to produce `extension/icons/{16,48,128}.png`. No npm,
+  no ImageMagick, and no build step added to `extension/`. `make build-icons` / `make check-icons`.
+- **A close control in the side panel**, in the footer as a labelled "Close panel" action —
+  deliberately not an X in the top-right, where Chrome renders its own close control.
+- `action.default_icon` in `extension/manifest.json`, so the toolbar and the side-panel header
+  resolve the real artwork instead of a generated placeholder.
+- **Inert brief sections** — buying signal, contact confidence, outreach email and CRM entry now
+  appear in the designed visual language but are explicitly labelled unavailable. They are never
+  filled with invented values, and never use a spinner or skeleton that would imply data is coming.
+- Self-hosted `Inter` and `JetBrains Mono` woff2 in `extension/fonts/` and `web/public/fonts/`, so
+  no surface fetches a font from a third-party CDN.
+- `specs/009-enrich-brief-parity/` — a plan (spec, plan, contract) for filling the four brief sections
+  that ship inert, by widening the enrichment output contract additively.
+
 - **Browser extension: Chrome Side Panel workspace** (`extension/sidepanel.html`, `sidepanel.js`).
   The lead form and AI preview now live in a docked, resizable panel that stays open while you
   browse, replacing the 500px toolbar dropdown that Chrome dismissed on any outside click. Requires
@@ -29,6 +54,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   redirect URI does not break on reload.
 
 ### Changed
+- **The brand accent is now the iris to violet to cyan gradient** (`#4a7cff` -> `#7c5cff` ->
+  `#22d3ee`), replacing the orange `#f97316` on GitHub-dark `#0d1117`. The retired values are
+  actively guarded against by `make check-tokens`. Note that `docs/UI_UX.md` still describes the old
+  theme and is no longer the visual source of truth.
+- The web app's header navigation is replaced by the design's 232px sidebar shell.
+- `docs/extension-store.md` now points at the real `design/mark.svg` and the `make build-icons`
+  workflow, instead of the orange placeholder SVG it used to embed.
+- Buttons use a dedicated `--grad-btn` that stops at the violet. The full `--grad` ends in cyan,
+  where white label text falls to a 1.81 contrast ratio and is effectively unreadable.
+- The design handoff bundle moved from an untracked `design_handoff_bd_lead/` in the repo root into
+  **`docs/design/`**, and is now tracked.
+- `docs/UI_UX.md` carries a banner stating it is not the visual specification; its stale token block
+  is replaced by a pointer to `design/tokens.css`, and its extension-surfaces section now describes
+  the shipped side panel rather than the superseded compact-composer popup.
+- Speckit skill frontmatter tiered by cost: the five `git-*` wrappers run on `haiku` with tools
+  scoped to `Bash, Read`; `checklist`, `clarify`, `constitution` and `taskstoissues` run on `sonnet`;
+  `specify`, `plan`, `tasks`, `analyze` and `implement` keep the session model. Skills that write to
+  git, create GitHub issues, or edit code are now user-invocable only.
+
 - The toolbar popup is now a **thin launcher** — open the panel, session state, backend reachability,
   and links out. The lead form and preview rendering moved to the side panel.
 - Options page replaces the hand-pasted JWT with Google sign-in, and adds fields for the Google
@@ -44,6 +88,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extension body text raised to the dashboard's 15px base; the old 10-11px preview text is gone.
 
 ### Fixed
+- **The API status dot never went green.** Both `lead-api.js` and `popup.js` probed the backend with
+  `HEAD /api/health`, but the route only allows `GET`, so every check returned 405 — reporting the
+  backend as unreachable and logging a console error on every panel and popup open. Now uses `GET`.
+- Sub-12px text in the web app (`UsageView`, `HistoryList`, `MemoryProfile` each rendered 11px), and
+  the hard-coded orange focus ring left in `sidepanel.html`.
+- `web/public/favicon.svg` was still unmodified Vite/Tessl template artwork; it now carries the
+  product mark.
+
 - **The backend could never reach a real LLM under Docker.** `docker-compose.yml` passed no
   `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` to the backend service, so `generate_enrichment` fell
   through Gemini → Claude → `_mock_generate` and every preview was `model_used: "mock-llm"`,
