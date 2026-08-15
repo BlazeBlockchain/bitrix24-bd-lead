@@ -19,6 +19,10 @@ export const Composer: React.FC = () => {
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<any>(null);
   const [previewGenerated, setPreviewGenerated] = React.useState(false);
+  // The enrichment the server actually returned. Before this existed the response was
+  // awaited and thrown away, so the web app rendered the form-derived stub while
+  // claiming it was LLM output — and every 009/010 brief section was unreachable here.
+  const [enriched, setEnriched] = React.useState<any>(null);
   const [isGenerating, setIsGenerating] = React.useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -42,18 +46,22 @@ export const Composer: React.FC = () => {
     setIsGenerating(true);
     setError(null);
     try {
-      // T013/T014: real /enrich call (additive; falls back to stub timeout if fails)
+      // T013/T014: real /enrich call. The response is the brief — snapshot, opener,
+      // follow-ups, plus the 009/010 sections (buying signal + citations, confidence,
+      // outreach email, CRM entry). Preview renders whatever of it validates and falls
+      // back to its inert presentation for the rest.
       const input = buildInput();
-      await enrichLead(input);
-      // store for preview awareness (Preview still uses form data + stub templates; enriched can be used later)
-      // non-breaking: existing previewGenerated enables Push
+      const data = await enrichLead(input);
+      setEnriched(data);
       setPreviewGenerated(true);
-      // optional: could set a generated preview state here for richer UI
     } catch (e: any) {
-      // graceful: keep skeleton behavior
-      setTimeout(() => {
-        setPreviewGenerated(true);
-      }, 50);
+      // Surface the failure instead of pretending it succeeded. The previous code
+      // swallowed the error and set previewGenerated anyway, so a dead backend or an
+      // expired session was indistinguishable from a real brief — the user got stub
+      // text labelled as LLM output.
+      setEnriched(null);
+      setPreviewGenerated(false);
+      setError(e?.message || 'Enrichment failed. Please try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -166,9 +174,14 @@ export const Composer: React.FC = () => {
           {isGenerating ? (
             <div className="skeleton">Contacting LLM…</div>
           ) : (
-            <Preview data={previewData} />
+            <Preview data={previewData} enriched={enriched} />
           )}
-          {previewGenerated && <div className="stub-note" style={{ marginTop: 8, fontSize: 12 }}>Preview generated via LLM enrichment.</div>}
+          {/* Only claim LLM enrichment when the server actually returned one. */}
+          {enriched && (
+            <div className="stub-note" style={{ marginTop: 8, fontSize: 12 }}>
+              Preview generated via LLM enrichment{enriched.model_used ? ` (${enriched.model_used})` : ''}.
+            </div>
+          )}
         </div>
       </div>
     </div>
