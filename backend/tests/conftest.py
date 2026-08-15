@@ -61,6 +61,29 @@ def mock_enrichment_result():
                 "rationale": "Address core need directly.",
             },
         ],
+        # 009: the four sections 008 shipped inert. Additive and optional — consumers
+        # that predate this feature ignore them, and a stored enrichment without them
+        # still renders, just inert.
+        "buying_signal": {
+            "summary": "Test Corp closed a funding round, which usually front-loads tooling decisions.",
+            "source": "Reported by the rep in the lead brief",
+            "date": "2026-08-01",
+        },
+        "contact_confidence": {
+            "level": "medium",
+            "reason": "VP Sales plausibly owns lead tracking, but the fit is unconfirmed.",
+        },
+        "outreach_email": {
+            "subject": "Test Corp — recent funding",
+            "body": "Hi John,\n\nSaw the funding round.\n\nWorth a short call?\n\nBest,\nThe team",
+        },
+        "crm_entry": {
+            "deal_name": "Test Deal",
+            "contact_role": "VP Sales",
+            "signal": "Recent funding",
+            "pain_point": "Manual lead tracking",
+            "pipeline": "New leads",
+        },
         "model_used": "test-mock-model",
         "memory_note": "Using test memory context",
     }
