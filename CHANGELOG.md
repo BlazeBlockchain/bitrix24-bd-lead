@@ -27,6 +27,12 @@ testing produced the corresponding failure.
   exposes spans of the model's own answer, not page text, so no page quote exists.
 - `buying_signal.unverified_by_company` — an amber caution when no source is the company's own. Such
   a claim rests entirely on third parties who may be reporting each other.
+- `buying_signal.search_suggestions` — Google's Search Suggestions block, rendered verbatim into a
+  shadow root on both surfaces. The Gemini API terms require it wherever grounded results are shown
+  and forbid modifying it, so it is server-checked and **refused rather than sanitised**; a refusal
+  drops the whole citation. This is the one sanctioned `innerHTML` in the codebase, documented at
+  both call sites. The shadow root keeps Google's unscoped `.container`/`.chip` CSS out of our layout
+  — verified by breaking it on purpose.
 - `backend/app/services/retrieval_service.py` — grounded Google Search as a pre-call, via REST on the
   existing `httpx` dependency. No new dependency.
 - `RETRIEVAL_ENABLED`, `RETRIEVAL_TIMEOUT_SECONDS` (6s), and grounding list price in config.
@@ -54,10 +60,11 @@ testing produced the corresponding failure.
   sentence was a synthesis across five sources and was attributed to one of them.
 
 ### Known
-- **Google's Grounding with Google Search terms are not fully met.** Resolving the redirect URI to the
-  publisher modifies the returned Link, and the required Search Suggestions are not rendered. Both
-  are deliberate product choices and need legal sign-off before real reps use this. See
-  `specs/010-verifiable-signal-source/plan.md`.
+- **Google's Grounding with Google Search terms are only partly met.** Search Suggestions are now
+  displayed as required. What remains is that resolving the grounding redirect to the publisher URL
+  modifies the Link Google returned — kept deliberately, since the raw redirect hides the destination
+  from the rep and defeats the point of the citation. Needs legal sign-off before real reps use this.
+  See `specs/010-verifiable-signal-source/plan.md`.
 - Source quality is uncontrolled where the company has no own-domain page in the results.
 - Enrichment latency is now ~18s mean, ~23s max.
 

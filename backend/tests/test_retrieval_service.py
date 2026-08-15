@@ -33,11 +33,22 @@ LEAD = {"company_name": "Acme Logistics", "signal": "closed a $40M Series B"}
 
 CONFIRMED_ANSWER = "CONFIRMED: Acme Logistics closed a $40M Series B in January 2026."
 
+# Shaped like the real fragment: scoped <style>, a chip carousel, an inline SVG logo,
+# links only to Google's own host. Measured — not invented.
+SEARCH_ENTRY = (
+    '<style>.container{display:flex}.chip{border-radius:16px}</style>'
+    '<div class="container"><svg><circle r="2"/><path d="M0 0"/></svg>'
+    '<div class="carousel">'
+    '<a class="chip" href="https://vertexaisearch.cloud.google.com/grounding-api-redirect/q1">'
+    'Acme Logistics Series B</a></div></div>'
+)
+
 
 def _grounded_body(
     answer=CONFIRMED_ANSWER,
     supports=True,
     chunks=None,
+    entry=SEARCH_ENTRY,
 ):
     chunks = chunks if chunks is not None else [{"web": {"uri": REDIRECT_URI, "title": "techcrunch.com"}}]
     metadata = {"webSearchQueries": ["Acme Logistics Series B"], "groundingChunks": chunks}
@@ -46,6 +57,8 @@ def _grounded_body(
             {"segment": {"startIndex": 0, "endIndex": len(answer), "text": answer},
              "groundingChunkIndices": [0]}
         ]
+    if entry is not None:
+        metadata["searchEntryPoint"] = {"renderedContent": entry}
     return {
         "candidates": [{
             "content": {"parts": [{"text": answer}]},
@@ -249,6 +262,43 @@ class TestRetrievalDegradesToNine:
         """www, trailing slash and locale hops are normal and must not drop a citation."""
         transport(_handler(_grounded_body(), live_bounces_to=same_site))
         assert await retrieve_signal_evidence(LEAD) is not None
+
+    @pytest.mark.asyncio
+    async def test_missing_search_suggestions_drops_the_whole_citation(self, transport):
+        """Terms: Grounded Results may only be shown WITH their Search Suggestions.
+
+        So "we cannot display the suggestions" has to mean "we do not display the
+        citation either" — not "we show the citation anyway".
+        """
+        transport(_handler(_grounded_body(entry=None)))
+        assert await retrieve_signal_evidence(LEAD) is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("hostile", [
+        '<div><script>alert(1)</script></div>',
+        '<div onload="alert(1)">x</div>',
+        '<a href="javascript:alert(1)">q</a>',
+        '<a href="http://example.com/q">q</a>',
+        '<img src="data:text/html;base64,x">',
+        '<div>' + 'x' * 30000 + '</div>',
+        '',
+    ])
+    async def test_unsafe_or_oversized_fragment_is_refused_not_cleaned(self, transport, hostile):
+        """Verbatim-or-nothing.
+
+        The terms forbid modifying Search Suggestions, so sanitising is not available —
+        a cleaned fragment is a modified one. The fragment either passes untouched or
+        the citation is dropped. These checks are what license rendering it with
+        innerHTML at all.
+        """
+        transport(_handler(_grounded_body(entry=hostile)))
+        assert await retrieve_signal_evidence(LEAD) is None
+
+    @pytest.mark.asyncio
+    async def test_safe_fragment_passes_through_byte_for_byte(self, transport):
+        transport(_handler(_grounded_body()))
+        result = await retrieve_signal_evidence(LEAD)
+        assert result["search_suggestions"] == SEARCH_ENTRY
 
     @pytest.mark.asyncio
     async def test_http_error_is_swallowed(self, transport):

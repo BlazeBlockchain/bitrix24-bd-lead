@@ -42,6 +42,7 @@ module produces is called `finding` and is never rendered as a quotation.
 
 import asyncio
 import logging
+import re
 from typing import Any, Optional
 from urllib.parse import urlsplit
 
@@ -162,6 +163,46 @@ def _best_finding(metadata: dict[str, Any], answer: str) -> Optional[str]:
             if text:
                 return text
     return None
+
+
+# Google's Search Suggestions fragment. Measured: <style>, a styled chip carousel, an
+# inline SVG logo, links only to vertexaisearch.cloud.google.com. No <script>, no event
+# handlers, and user-influenced text is escaped before it reaches the queries.
+SEARCH_ENTRY_MAX_CHARS = 20000
+_FORBIDDEN_MARKUP = re.compile(r"<\s*script|\son\w+\s*=|javascript:|data:", re.IGNORECASE)
+_HREF = re.compile(r'href\s*=\s*"([^"]*)"', re.IGNORECASE)
+
+
+def _validate_search_suggestions(html: Any) -> Optional[str]:
+    """Google's Search Suggestions fragment, verbatim — or None.
+
+    The Gemini API terms require Grounded Results be displayed WITH the associated
+    Search Suggestions, and separately forbid modifying them. Those two rules together
+    mean sanitising is not an option: a cleaned-up fragment is a modified one. So this
+    is verbatim-or-nothing — the fragment is checked and either passes through
+    untouched or is refused entirely.
+
+    Refusing has a consequence the caller honours: if the suggestions cannot be shown,
+    the citation is not shown either, because displaying Grounded Results without them
+    is the thing the terms prohibit. That degrades to the 009 brief, which is the same
+    honest fallback every other failure path in this module uses.
+
+    The checks are the reason we can render this with innerHTML at all — see the note
+    in the 010 plan on the one narrow exception to the project's no-innerHTML rule.
+    """
+    if not isinstance(html, str):
+        return None
+    text = html.strip()
+    if not text or len(text) > SEARCH_ENTRY_MAX_CHARS:
+        return None
+    if _FORBIDDEN_MARKUP.search(text):
+        logger.warning("Search Suggestions fragment contains script or handler markup; refusing")
+        return None
+    for href in _HREF.findall(text):
+        if not href.startswith("https://"):
+            logger.warning("Search Suggestions fragment has a non-https link; refusing")
+            return None
+    return text
 
 
 def _strip_verdict(text: str) -> str:
@@ -372,11 +413,24 @@ async def retrieve_signal_evidence(lead_brief: dict[str, Any]) -> Optional[dict[
             has_primary = any(
                 any(t in (src["publisher"] or "").lower() for t in tokens) for src in sources
             )
+            # Terms requirement: Grounded Results may only be displayed together with
+            # the Search Suggestions. No suggestions we can show verbatim means no
+            # citation at all.
+            suggestions = _validate_search_suggestions(metadata.get("searchEntryPoint", {}).get("renderedContent"))
+            if not suggestions:
+                logger.info("RETRIEVAL: %s (no displayable Search Suggestions)", OUTCOME_EMPTY)
+                return None
+
             logger.info(
                 "RETRIEVAL: %s (%d sources, primary=%s, query=%r)",
                 OUTCOME_FOUND, len(sources), has_primary, query,
             )
-            return {"finding": finding, "sources": sources, "has_primary": has_primary}
+            return {
+                "finding": finding,
+                "sources": sources,
+                "has_primary": has_primary,
+                "search_suggestions": suggestions,
+            }
 
     except (httpx.TimeoutException, asyncio.TimeoutError):
         # The flow must never be worse than 009 because a search was slow.

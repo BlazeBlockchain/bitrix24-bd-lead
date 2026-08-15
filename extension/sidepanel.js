@@ -390,6 +390,33 @@ function makeSourceLinkChip(url, withLabel) {
   return chip;
 }
 
+/**
+ * Google's Search Suggestions block, rendered verbatim inside a shadow root.
+ *
+ * This is THE ONE PLACE in this file that uses innerHTML, and it is a deliberate,
+ * narrow exception to the project's no-innerHTML rule. Three things justify it:
+ *
+ *  - The Gemini API terms REQUIRE grounded results be displayed with their Search
+ *    Suggestions, and separately FORBID modifying them. Building the chips ourselves
+ *    with createElement would be a modification, so it is not an option here.
+ *  - The fragment is checked before it ever reaches this function — no <script>, no
+ *    on* handlers, no javascript:/data:, https links only, size-capped. It is refused
+ *    outright rather than cleaned, so nothing unsafe is ever "made safe" and rendered.
+ *    A refused fragment drops the whole citation. See _validate_search_suggestions.
+ *  - MV3's CSP gives a second, independent line of defence: script-src 'self' means
+ *    injected script cannot execute even if the checks were somehow bypassed.
+ *
+ * The shadow root is not for security — it is for style. Google's fragment ships
+ * unscoped global CSS for `.container`, `.chip`, `.carousel` and `.headline`, which
+ * would otherwise leak straight into the panel's own layout.
+ */
+function makeSearchSuggestions(html) {
+  const host = document.createElement('div');
+  host.className = 'search-suggestions';
+  host.attachShadow({ mode: 'open' }).innerHTML = html;
+  return host;
+}
+
 /** A populated section shell: solid border + uppercase title. */
 function makeBriefSection(title) {
   const box = document.createElement('div');
@@ -461,6 +488,12 @@ function renderBuyingSignal(enrichment) {
     if (date) meta.appendChild(makeText('span', 'brief-meta-item', date));
     box.appendChild(meta);
   }
+
+  // Required by the Gemini API terms whenever grounded results are shown. The server
+  // drops the entire citation when it cannot supply a displayable fragment, so if we
+  // have sources we have these.
+  const suggestions = briefText(signal.search_suggestions);
+  if (sources.length && suggestions) box.appendChild(makeSearchSuggestions(suggestions));
 
   return box;
 }

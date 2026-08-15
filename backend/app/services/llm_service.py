@@ -416,7 +416,8 @@ def _validate_buying_signal(raw: Any) -> Optional[dict[str, Any]]:
     date = _validate_signal_date(raw.get("date"))
     if date:
         out["date"] = date
-    for authored in ("sources", "source_url", "finding", "quote", "unverified_by_company"):
+    for authored in ("sources", "source_url", "finding", "quote", "unverified_by_company",
+                     "search_suggestions"):
         if raw.get(authored) is not None:
             # Worth a log line rather than a silent drop: how often the model reaches
             # for a URL once it has been shown retrieved evidence is exactly the
@@ -520,6 +521,7 @@ def attach_citation(
     sources: Any,
     finding: Any = None,
     has_primary: bool = True,
+    search_suggestions: Any = None,
 ) -> dict[str, Any]:
     """Attach a retrieval-sourced citation to `buying_signal`, in place.
 
@@ -547,6 +549,12 @@ def attach_citation(
         return preview
     if not has_primary:
         citation["unverified_by_company"] = True
+    # Google's Search Suggestions markup, verbatim. The Gemini API terms require it be
+    # displayed alongside grounded results, and forbid modifying it — so it travels
+    # through untouched, having been checked (not cleaned) in retrieval_service.
+    suggestions = search_suggestions if isinstance(search_suggestions, str) and search_suggestions.strip() else None
+    if suggestions:
+        citation["search_suggestions"] = suggestions
     signal.update(citation)
     return preview
 
@@ -1017,11 +1025,16 @@ async def generate_enrichment(
         # authority, which is the opposite of what a citation is for.
         signal = result.get("buying_signal")
         if isinstance(signal, dict):
-            for key in ("sources", "source_url", "finding", "unverified_by_company"):
+            for key in ("sources", "source_url", "finding", "unverified_by_company",
+                        "search_suggestions"):
                 signal.pop(key, None)
     elif evidence:
         attach_citation(
-            result, evidence["sources"], evidence["finding"], evidence.get("has_primary", True)
+            result,
+            evidence["sources"],
+            evidence["finding"],
+            evidence.get("has_primary", True),
+            evidence.get("search_suggestions"),
         )
 
     # Real provider token counts, priced from the table in config. Popped here so the

@@ -126,6 +126,10 @@ happened — instead of being told the signal came from the form I filled in mys
   NO company-own source MUST carry a caution telling the rep the signal may not be accurate.
 - **FR-016**: A cited URL MUST be confirmed reachable and MUST NOT redirect to a different host. A
   citation the rep cannot open, or that lands somewhere else, is not a citation.
+- **FR-018**: Google's Search Suggestions markup MUST be displayed verbatim wherever a citation is
+  shown, and MUST NOT be sanitised or rebuilt. A fragment that fails safety checks MUST be refused
+  outright, and refusing it MUST drop the whole citation rather than show grounded results without
+  it. It MUST be rendered in a shadow root so its global CSS cannot affect the host page.
 - **FR-017**: Retrieval MUST be framed as verifying a claim about a named entity, not as an
   open-ended search. It MUST reject namesakes, subsidiaries, same-name entities in other
   jurisdictions, and different events, and MUST return an explicit machine-checkable verdict.
@@ -186,10 +190,11 @@ happened — instead of being told the signal came from the form I filled in mys
   exception, added after P4: when sources exist but none is the company's own, a caution IS shown —
   that is a specific, actionable weakness rather than the generic absence of evidence.
 
-- **Google's Grounding with Google Search terms are not fully met by this implementation.** See the
-  compliance note in the plan. Resolving the redirect URI to the publisher and not rendering the
-  returned Search Suggestions are both deliberate product choices that need legal sign-off before
-  this is exposed to real reps.
+- **Google's Grounding with Google Search terms are only partly met.** The required Search
+  Suggestions are now rendered verbatim, and a citation that cannot carry them is dropped entirely.
+  What remains is that we resolve the grounding redirect to the publisher URL, which modifies the
+  Link Google returned — a deliberate product choice that needs legal sign-off before real reps use
+  this. See the compliance note in the plan.
 
 ## Out of Scope
 

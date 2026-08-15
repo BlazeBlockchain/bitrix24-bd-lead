@@ -10,7 +10,7 @@ The three preview fields (`company_snapshot`, `personalized_opener`, `follow_ups
 009 objects (`buying_signal`, `contact_confidence`, `outreach_email`, `crm_entry`) are unchanged.
 See [009's contract](../../009-enrich-brief-parity/contracts/enrich-contract.md).
 
-## New — three optional fields inside `buying_signal`
+## New — four optional fields inside `buying_signal`
 
 ```jsonc
 "buying_signal": {
@@ -25,8 +25,11 @@ See [009's contract](../../009-enrich-brief-parity/contracts/enrich-contract.md)
   ],
   "finding": "string | null",     // NEW — the grounded search result attributed to
                                   //   `sources`. NOT a quote from any of them. <=240 chars
-  "unverified_by_company": true   // NEW — present only when NO source is the company's
+  "unverified_by_company": true,  // NEW — present only when NO source is the company's
                                   //   own domain; renders as a caution to the rep
+  "search_suggestions": "<html>"  // NEW — Google's Search Suggestions markup, VERBATIM.
+                                  //   Required by the Gemini API terms wherever
+                                  //   grounded results are shown. Never sanitised.
 }
 
 `source_url` (a single string) appears in enrichments stored before multi-source landed. Clients read
@@ -87,7 +90,13 @@ transit, and every credible publisher serves https.
 3. **`rel="noopener noreferrer"`, `target="_blank"`.**
 4. **The finding renders as plain text** on its own line, prefixed `Search found:` — deliberately
    not italicised, quoted, or set in a blockquote, since it is not a quotation.
-5. **`unverified_by_company` renders a caution** in amber, telling the rep the signal may not be
+5. **`search_suggestions` is rendered verbatim into a SHADOW ROOT** — the one sanctioned use of
+   `innerHTML` in this codebase. The terms require it be displayed alongside grounded results and
+   forbid modifying it, so rebuilding it with `createElement` is not an option; it is server-checked
+   (no script, no `on*=`, no `javascript:`/`data:`, https-only, size-capped) and **refused rather
+   than cleaned**, and a refusal drops the whole citation. The shadow root is for style containment:
+   Google ships unscoped global CSS for `.container`, `.chip` and `.carousel`.
+6. **`unverified_by_company` renders a caution** in amber, telling the rep the signal may not be
    accurate and to check before sending. It is shown only alongside a citation: with no sources at
    all the section is already the honest 009 presentation and needs no warning. Its absence is not a
    guarantee of accuracy — only the absence of this specific weakness.
@@ -105,6 +114,7 @@ transit, and every credible publisher serves https.
 | Retrieval disabled / key unset | identical to above |
 | Model emits a `source_url` | stripped; identical to above |
 | `finding` present, every source invalid | both dropped; identical to above |
+| Search Suggestions absent or failing safety checks | **whole citation dropped**; identical to above |
 | Some sources invalid, at least one valid | valid ones render; invalid ones silently omitted |
 | Grounding URI does not resolve to an https publisher URL | identical to above |
 | Stored pre-010 enrichment | identical to above |

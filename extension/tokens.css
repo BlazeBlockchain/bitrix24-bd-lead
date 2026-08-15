@@ -479,6 +479,15 @@ label {
    weakest evidence this feature can produce while still producing something. Amber
    rather than red: it is a "check this" not an "error", and the brief is still usable.
    Absence of the note is not a guarantee, only the absence of this specific weakness. */
+/* 010: host for Google's Search Suggestions block, which the Gemini API terms require
+   be shown alongside grounded results. The fragment lives in a shadow root because it
+   ships unscoped global CSS (.container, .chip, .carousel) that would otherwise leak
+   into our layout — so only the host box is styled here. */
+.search-suggestions {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
 .brief-caution {
   font-size: var(--fs-sm);
   color: #f5b544;

@@ -88,6 +88,33 @@ const httpsUrl = (value: unknown): URL | null => {
   return parsed;
 };
 
+/**
+ * Google's Search Suggestions block, rendered verbatim inside a shadow root.
+ *
+ * The one place in this component that assigns markup rather than text, and a
+ * deliberate narrow exception. The Gemini API terms REQUIRE grounded results be
+ * displayed with their Search Suggestions and separately FORBID modifying them, so
+ * rebuilding the chips as JSX would itself be a violation.
+ *
+ * The fragment is checked server-side before it is ever sent — no script, no on*
+ * handlers, no javascript:/data:, https links only, size-capped — and refused outright
+ * rather than cleaned, which drops the whole citation. Nothing unsafe is ever "made
+ * safe" and then rendered.
+ *
+ * The shadow root is for style, not security: Google ships unscoped global CSS for
+ * `.container`, `.chip` and `.carousel`, which would otherwise leak into the app.
+ */
+const SearchSuggestions: React.FC<{ html: string }> = ({ html }) => {
+  const hostRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
+    root.innerHTML = html;
+  }, [html]);
+  return <div className="search-suggestions" ref={hostRef} />;
+};
+
 const BuyingSignalSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched }) => {
   const signal = enriched.buying_signal;
   const summary = signal && typeof signal === 'object' ? text(signal.summary) : null;
@@ -123,6 +150,7 @@ const BuyingSignalSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched
     .filter((s): s is { url: URL; publisher: string | null } => s.url !== null);
   const finding = sources.length ? text(signal!.finding) : null;
   const unverified = sources.length > 0 && signal!.unverified_by_company === true;
+  const suggestions = text(signal!.search_suggestions);
 
   return (
     <div className="brief-section">
@@ -158,6 +186,10 @@ const BuyingSignalSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched
           {date && <span className="brief-meta-item">{date}</span>}
         </div>
       )}
+      {/* Required by the Gemini API terms whenever grounded results are shown. The
+          server drops the whole citation when it cannot supply a displayable
+          fragment, so if there are sources there are suggestions. */}
+      {sources.length > 0 && suggestions && <SearchSuggestions html={suggestions} />}
     </div>
   );
 };

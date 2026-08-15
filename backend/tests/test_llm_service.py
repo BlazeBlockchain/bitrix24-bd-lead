@@ -541,6 +541,7 @@ class TestRetrievalWiring:
         "sources": [{"url": "https://techcrunch.com/2026/01/15/acme-series-b",
                      "publisher": "techcrunch.com"}],
         "has_primary": True,
+        "search_suggestions": '<div class="container"><a href="https://vertexaisearch.cloud.google.com/x">q</a></div>',
     }
 
     @pytest.mark.asyncio
@@ -550,6 +551,8 @@ class TestRetrievalWiring:
             result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
         assert result["buying_signal"]["sources"] == self.EVIDENCE["sources"]
         assert result["buying_signal"]["finding"] == self.EVIDENCE["finding"]
+        # Terms: grounded results travel with their Search Suggestions, unmodified.
+        assert result["buying_signal"]["search_suggestions"] == self.EVIDENCE["search_suggestions"]
 
     @pytest.mark.asyncio
     async def test_no_evidence_degrades_to_009(self, mock_lead_input, mock_current_user):
@@ -596,6 +599,7 @@ class TestRetrievalWiring:
         assert result["mock"] is True
         assert "sources" not in result["buying_signal"]
         assert "finding" not in result["buying_signal"]
+        assert "search_suggestions" not in result["buying_signal"]
         # And the mock's own placeholder citation is gone too.
         assert "example.com" not in str(result)
 

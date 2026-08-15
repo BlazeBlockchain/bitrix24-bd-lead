@@ -335,16 +335,46 @@ Measured against those, **this implementation does not currently comply on two p
    explicit instruction: a chip reading "vertexaisearch.cloud.google.com" tells the rep nothing,
    implies Google is the source, and hides the destination before the click — which defeats
    checkability, the entire point of the feature. Kept, deliberately.
-2. **We do not render Search Suggestions.** `groundingMetadata.searchEntryPoint` returns HTML/CSS the
-   terms require be displayed alongside grounded results. We currently discard it.
+2. ~~**We do not render Search Suggestions.**~~ **Closed.** `searchEntryPoint.renderedContent` is now
+   rendered verbatim on both surfaces, and the citation is dropped entirely when it cannot be — see
+   below.
 
 A third clause — *"you will not cache … Grounded Results"* — is arguably engaged by storing the
 citation on a persisted enrichment, though the terms do permit storage for "end-user chat history",
 which a saved lead brief plausibly is.
 
-**This needs legal sign-off before real reps see it, and it is not a decision this plan can make.**
-The compliance-shaped alternative is to render the redirect URI as-is plus the Search Suggestions
-block, at a real cost to the feature's usefulness. Recorded here rather than resolved.
+**One gap remains and needs legal sign-off: we still resolve the Link.** That is a deliberate product
+choice, taken with the trade-off understood. Recorded here rather than resolved.
+
+### Rendering the Search Suggestions — verbatim or not at all
+
+Probed against the live API before designing anything. The fragment is 5.3KB containing only
+`a, circle, div, path, style, svg`: a chip carousel, an inline SVG logo, links exclusively to
+`vertexaisearch.cloud.google.com`. **No `<script>`, no `on*=` handlers.** A deliberately hostile
+company name (`Acme <img src=x onerror=alert(1)>`) was escaped by Google before it reached
+`webSearchQueries` at all.
+
+Two problems had to be solved.
+
+**The terms forbid modifying Search Suggestions, so sanitising is not available** — a cleaned-up
+fragment is a modified one, and rebuilding the chips with `createElement` would be a modification
+too. The resolution is **verbatim-or-nothing**: `_validate_search_suggestions` *checks* the fragment
+(no script, no handlers, no `javascript:`/`data:`, https-only hrefs, 20KB cap) and either passes it
+through byte-for-byte or **refuses it**. A refused fragment drops the **entire citation**, because
+displaying Grounded Results without their Suggestions is precisely what the terms prohibit. That
+degrades to the 009 brief — the same honest fallback every other failure path here uses.
+
+**Google's CSS is global and unscoped**, styling `.container`, `.chip`, `.carousel` and `.headline`.
+Dropped into either surface it would bleed straight into our layout. Both renderers therefore attach
+it to a **shadow root**. The shadow root is for *style containment*, not security — and the harness
+proves it is load-bearing: rendering without it makes our own `.brief-section` inherit Google's
+rules.
+
+**This is the one sanctioned `innerHTML` in the codebase**, and the exception is documented at both
+call sites. What licenses it: the terms leave no alternative, the fragment is server-checked rather
+than cleaned, and MV3's `script-src 'self'` is an independent second line of defence in the
+extension. It is not a general relaxation — every other value on the brief is still
+`createElement`/`textContent`.
 
 ## Risks
 

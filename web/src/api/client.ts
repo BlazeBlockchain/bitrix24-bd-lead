@@ -189,6 +189,12 @@ export interface EnrichedPreview {
     finding?: string;
     /** No source is the company's own domain — the claim rests on third parties only. */
     unverified_by_company?: boolean;
+    /**
+     * Google's Search Suggestions markup, verbatim. The Gemini API terms require it be
+     * displayed alongside grounded results and forbid modifying it, so it is rendered
+     * as-is into a shadow root. Server-checked (never sanitised) before it is sent.
+     */
+    search_suggestions?: string;
     /** Pre-multi-source 010 enrichments. Read as a single-entry `sources`. */
     source_url?: string;
   };
