@@ -103,7 +103,8 @@ Install once. Paste a name + signal today. Never go back to manual entry.
 - Include the "Personalized using your..." memory callout.
 - Mobile viewport + desktop popup.
 - No login walls in shots; show logged-in happy states.
-- Follow UI_UX dark theme tokens (bg #0d1117, accent orange etc. from web).
+- Follow the current design tokens (`design/tokens.css`): bg `#05070d`, iris->violet->cyan gradient accent.
+  NOTE: `docs/UI_UX.md` still describes the retired orange theme — do not take colors from it.
 - After T016 scaffold + T017 thin client, capture from actual unpacked extension (chrome://extensions → Load unpacked).
 - Name files: `screenshot-1-popup-composer.png`, etc.
 - Alt text / store descriptions should repeat the non-tech flow: "paste signal -> magic AI 3 tasks -> CRM".
@@ -113,31 +114,25 @@ Install once. Paste a name + signal today. Never go back to manual entry.
 ## Icon & Promo Assets (Manifest + Store)
 
 ### Icon Guidance
-- Chrome Web Store requires:
-  - 128×128 PNG (for listing + extension icon)
-  - 48×48, 16×16 generated from it (or provide).
-- Recommended: Simple, recognizable "lead rocket" or "AI sparkle + CRM checkmark" on dark bg.
-- Colors: Dark navy/black + vibrant orange accent (#f97316 from UI) + white text.
-- Text-free preferred for small sizes; "BD" monogram + magic sparkles.
+- Chrome Web Store requires a 128x128 PNG for the listing; 48x48 and 16x16 ship in the extension.
+- The mark is **already built**. Do not re-invent it and do not use a placeholder.
 
-### Placeholder SVG Icon (copy to extension/assets/icon.svg or web/public when T016 lands)
-Use this simple scalable placeholder (or improve with designer). Save as 128x128 PNG export for store.
+**Source of truth**: `design/mark.svg` — a white bolt glyph on the brand gradient rounded square
+(`#4a7cff` -> `#7c5cff` 55% -> `#22d3ee`), matching `.bd-mark` in the design handoff. Text-free, so it
+stays legible at 16px.
 
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
-  <!-- Background -->
-  <rect width="128" height="128" rx="24" fill="#0d1117"/>
-  <!-- CRM card shape -->
-  <rect x="20" y="28" width="88" height="72" rx="8" fill="#161b22" stroke="#30363d" stroke-width="4"/>
-  <!-- Sparkle / AI magic -->
-  <path d="M44 44 L48 56 L60 52 L48 60 L44 72 L40 60 L28 56 L40 52 Z" fill="#f97316"/>
-  <!-- Check / push arrow into CRM -->
-  <polyline points="72,68 80,76 96,56" stroke="#3fb950" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- Small Bitrix/Hub logos hint (abstract) -->
-  <circle cx="100" cy="40" r="6" fill="#58a6ff"/>
-  <circle cx="108" cy="48" r="4" fill="#f97316"/>
-</svg>
+**To regenerate the rasters** (writes `extension/icons/{16,48,128}.png`):
+
+```bash
+make build-icons     # rasterizes design/mark.svg via headless Chrome
+make check-icons     # validates size + guards against blank output
 ```
+
+The web favicon is `web/public/favicon.svg`, carrying the same mark. Keep it in sync with
+`design/mark.svg` by hand — it is a separate file so the web app can serve vector.
+
+**Colors**: near-black navy (`--bg #05070d`) + the iris->violet->cyan gradient + white glyph.
+The old orange `#f97316` on `#0d1117` is **retired** — do not use it in store assets.
 
 **Notes for manifest (when T016 creates extension/manifest.json):**
 ```json

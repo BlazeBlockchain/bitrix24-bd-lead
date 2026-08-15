@@ -1,9 +1,23 @@
 # UI_UX: AI-Native BD Lead Assistant — Screens, Journeys, Design
 
 **Project:** bitrix24-bd-lead  
-**Status:** Draft (Phase 0)  
+**Status:** Phase 0 product/UX direction — **superseded on visual design** (updated 2026-08-15)  
 **Date:** 2026-07-13  
-**Inspiration:** Vanguard-game design system (dark theme, accent colors, component patterns) + non-technical buyer constraints from `docs/development-options.md`
+**Scope:** screens, journeys, information architecture, and the audience constraints from
+`docs/development-options.md`.
+
+> ## ⚠️ This is not the visual specification
+>
+> **For colors, type, spacing, and component styling, use `docs/design/` instead** —
+> `docs/design/README.md` is the written spec and `docs/design/styles.css` is the token source of
+> truth. The machine-readable, committed transcription is `design/tokens.css`.
+>
+> The palette this document originally proposed (orange `#f97316` on GitHub-dark `#0d1117`, adapted
+> from the Vanguard-game design system) is **retired**. It was never a deliberate brand — it was a
+> placeholder that shipped. `make check-tokens` now fails the build if any of those values reappear.
+>
+> What remains authoritative here: the **design principles** below, the **screen inventory**, the
+> **user journey**, and the **accessibility requirements**. Those still hold.
 
 ---
 
@@ -82,14 +96,21 @@ Top-level nav (persistent header):
 - Danger: "Export my data", "Delete account & all memory".
 
 ### Browser Extension Surfaces (MV3)
-- **Popup** (default action)
-  - Compact version of composer (or "Open full composer in web" link).
-  - "Use visible page data" button (best-effort scrape of name/company on known CRM/LinkedIn hosts).
-  - Status line: "Connected to your Bitrix24".
-- **Options page** (chrome://extensions or link)
-  - Same as web Connections + Account summary.
-  - "Open web dashboard" button.
-- Content script (optional v1+): Floating "BD Lead" button on recognized CRM record pages (non-intrusive).
+
+> Updated 2026-08-15 to match what shipped. The compact-composer-in-a-popup model below was replaced
+> by a docked side panel in `specs/007-extension-side-panel/` — a popup is capped near 800x600 and
+> Chrome dismisses it on any outside click, which broke the core "read the prospect's page alongside
+> the brief" workflow.
+
+- **Side panel** (`sidepanel.html`) — the workspace, and the daily driver. Docked, user-resizable,
+  stays open while the user browses. Holds the lead form and the full AI preview. Requires Chrome
+  116+. Includes a footer "Close panel" action; the top-right is left to Chrome's own close control.
+- **Popup** (`popup.html`) — a thin 320px launcher only. Opens the panel, shows API and session
+  status, links to settings and the dashboard. Deliberately does *not* duplicate the composer.
+- **Options page** (`options.html`) — Google sign-in, OAuth client ID, the redirect URI, and default
+  CRM provider.
+- **Page capture** — "Grab from this page" in the panel, via on-demand `chrome.scripting` against the
+  active tab. Not a persistent content script, and no floating in-page button.
 
 **Navigation model overall:**
 - Web: SPA (React Router) or Next.js pages.
@@ -125,21 +146,47 @@ Top-level nav (persistent header):
 
 ## Component Library & Design Tokens (Initial)
 
-**Base tokens** (adapt from vanguard-game `src/index.css` + components):
+**Base tokens — see `design/tokens.css`, do not copy values out of this document.**
+
+The token set is generated into `web/src/index.css` and `extension/tokens.css` by
+`make sync-tokens`; `make check-tokens` fails on drift. Summary of the current language:
+
 ```css
---bg: #0d1117;
---surface: #161b22;
---surface-2: #1c2330;
---border: #30363d;
---text: #e6edf3;
---muted: #8b949e;
---accent: #f97316;      /* Orange — primary action */
---accent-2: #38bdf8;    /* Blue — secondary / HubSpot */
---accent-3: #4ade80;    /* Green — success / connected */
---danger: #f87171;
---radius: 8px;
---font-sans: system-ui, sans-serif;
+/* surfaces — near-black navy, translucent glass panels */
+--bg: #05070d;
+--bg-elev: #0a0e18;
+--panel: rgba(255,255,255,0.025);
+--border: rgba(255,255,255,0.07);   /* hairline, not a solid line */
+
+/* brand — iris → violet → cyan gradient, NOT a flat accent */
+--accent: #4a7cff;
+--accent2: #7c5cff;
+--accent3: #22d3ee;
+--grad: linear-gradient(135deg, #4a7cff 0%, #7c5cff 55%, #22d3ee 100%);
+--grad-btn: linear-gradient(135deg, #4a7cff 0%, #7c5cff 100%);  /* stops before cyan */
+
+/* text ramp */
+--text: #eaecf2;  --text-soft: #b0b6c4;  --muted: #6b7385;  --muted-dim: #4a5160;
+
+/* semantic */
+--green: #10b981;  --gold: #f5b841;  --red: #ef4444;
+
+/* radius ramp (not a single --radius) */
+--r-sm: 8px;  --r-md: 10px;  --r-lg: 14px;  --r-xl: 18px;
+
+/* type — self-hosted, no font CDN */
+--font-ui: "Inter", -apple-system, system-ui, sans-serif;
+--font-mono: "JetBrains Mono", ui-monospace, monospace;
 ```
+
+Two deliberate deviations from `docs/design/styles.css`, both documented in
+`specs/008-design-system-pass/`:
+
+- **12px minimum font size.** The handoff specifies ~10.5px chips and 10px labels. This project has
+  a hard 12px floor — Chrome's UA stylesheet already shrinks extension-page body text by 0.75, and
+  sub-12px type was a shipped defect once. The ramp is rescaled upward from 12px.
+- **`--grad-btn` for button fills.** The full `--grad` ends in cyan, where white label text falls to
+  a 1.81 contrast ratio and is effectively unreadable. Decorative uses keep the full gradient.
 
 **BD-specific components (to build or adapt):**
 - `LeadCard` / `HistoryRow`
@@ -210,9 +257,13 @@ Top-level nav (persistent header):
 ---
 
 **Related Artifacts**
+- `docs/design/` — **the visual specification**. `README.md` is the written spec, `styles.css` the
+  token source of truth, and the `*.jsx` files are runnable prototypes (reference only — never ship
+  their in-browser Babel or `design-canvas`/`tweaks-panel` scaffolding).
+- `design/tokens.css` — the committed, machine-readable token upstream. `make sync-tokens`.
 - `FEATURES.md` for stories and acceptance criteria that these screens must satisfy.
 - `ARCHITECTURE.md` for the data that must be displayed (enriched json shape, memory profile).
-- Vanguard-game components for reuse patterns (`ChallengeCard`, `Layout`, forms, protected routes).
+- `specs/008-design-system-pass/` — how the design was applied, and the two documented deviations.
 
 ---
 

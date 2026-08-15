@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>bd-lead — web app + extension</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  html, body { margin: 0; background: #07080d; }
+  /* design-canvas grid bg → make dark to suit the deep theme */
+  .dc-root, .design-canvas, body { background: #07080d !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="Shell.jsx"></script>
+<script type="text/babel" src="WebApp.jsx"></script>
+<script type="text/babel" src="Onboarding.jsx"></script>
+<script type="text/babel" src="Billing.jsx"></script>
+<script type="text/babel" src="Extension.jsx"></script>
+
+<script type="text/babel">
+const { useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "palette": [
+    "#4a7cff",
+    "#7c5cff",
+    "#22d3ee"
+  ],
+  "crm": "bitrix24",
+  "cadence": "4\/9\/14",
+  "density": "regular"
+}/*EDITMODE-END*/;
+
+const PALETTES = [
+  ["#4a7cff", "#7c5cff", "#22d3ee"], // signal blue → violet → cyan (default)
+  ["#10b981", "#22d3ee", "#4a7cff"], // emerald → cyan → blue
+  ["#f5b841", "#fb7185", "#7c5cff"], // gold → rose → violet
+  ["#7c5cff", "#a855f7", "#22d3ee"], // violet-forward
+];
+
+function applyPalette(p) {
+  const r = document.documentElement.style;
+  const [a, b, c] = p;
+  r.setProperty("--accent", a);
+  r.setProperty("--accent2", b);
+  r.setProperty("--accent3", c);
+  r.setProperty("--grad", `linear-gradient(135deg, ${a} 0%, ${b} 55%, ${c} 100%)`);
+  r.setProperty("--grad-soft", `linear-gradient(135deg, ${a}2e, ${b}29 55%, ${c}24)`);
+  r.setProperty("--grad-text", `linear-gradient(100deg, ${a} 0%, ${b} 50%, ${c} 100%)`);
+  r.setProperty("--accent-soft", `${a}1a`);
+  r.setProperty("--accent-line", `${b}47`);
+  r.setProperty("--glow-accent", `0 4px 16px ${a}47, inset 0 1px 0 rgba(255,255,255,0.18)`);
+  r.setProperty("--glow-accent-hover", `0 8px 28px ${b}66, inset 0 1px 0 rgba(255,255,255,0.22)`);
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  useEffect(() => { applyPalette(t.palette); }, [t.palette]);
+
+  return (
+    <React.Fragment>
+      <DesignCanvas>
+        <DCSection id="webapp" title="Web app — bdlead.app" subtitle="Onboarding · the paste-a-lead hero flow · billing. Shared backend, shared memory.">
+          <DCArtboard id="onb" label="Onboarding · connect CRM (interactive)" width={1000} height={680}>
+            <BDOnboarding t={t} />
+          </DCArtboard>
+          <DCArtboard id="wa" label="Paste → enrich → push (interactive)" width={1180} height={800}>
+            <BDWebApp t={t} />
+          </DCArtboard>
+          <DCArtboard id="bill" label="Billing & plan" width={1180} height={820}>
+            <BDBilling t={t} />
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="ext" title="Chrome / Firefox extension (MV3)" subtitle="The daily driver — lives where the rep already works.">
+          <DCArtboard id="popup" label="Toolbar popup" width={384} height={600}>
+            <ExtPopup t={t} />
+          </DCArtboard>
+          <DCArtboard id="inpage" label="In-page injected panel · CRM / LinkedIn tab" width={960} height={600}>
+            <ExtInPage t={t} />
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel>
+        <TweakSection label="Brand" />
+        <TweakColor label="Accent gradient" value={t.palette} options={PALETTES}
+          onChange={(v) => setTweak("palette", v)} />
+        <TweakSection label="Context" />
+        <TweakRadio label="CRM" value={t.crm} options={["bitrix24", "hubspot"]}
+          onChange={(v) => setTweak("crm", v)} />
+        <TweakRadio label="Cadence" value={t.cadence} options={["4/9/14", "3/7/14", "2/5/10"]}
+          onChange={(v) => setTweak("cadence", v)} />
+        <TweakSection label="Layout" />
+        <TweakRadio label="Density" value={t.density} options={["compact", "regular", "comfy"]}
+          onChange={(v) => setTweak("density", v)} />
+      </TweaksPanel>
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
