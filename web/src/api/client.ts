@@ -166,8 +166,43 @@ export interface EnrichedPreview {
   mock?: boolean;
   memory_note?: string;
   authenticated_as?: string;
+
+  /**
+   * 009: the four sections 008 shipped inert. All optional — the server omits any
+   * object it could not validate, and an omitted object means the section renders
+   * in its inert presentation. Absent, malformed, and out-of-range are one case.
+   *
+   * These are typed as optional rather than trusted: the index signature below
+   * means TypeScript cannot police what actually arrives at runtime, so every
+   * consumer still validates before rendering (see isConfidence in Preview.tsx).
+   */
+  buying_signal?: {
+    summary: string;
+    source?: string;
+    date?: string;
+  };
+  contact_confidence?: {
+    level: ConfidenceLevel;
+    reason: string;
+  };
+  outreach_email?: {
+    subject: string;
+    body: string;
+  };
+  crm_entry?: {
+    deal_name?: string;
+    contact_role?: string;
+    signal?: string;
+    pain_point?: string;
+    pipeline?: string;
+  };
+
   [key: string]: any;
 }
+
+/** The only confidence values that may ever be rendered. */
+export const CONFIDENCE_LEVELS = ['high', 'medium', 'low'] as const;
+export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 
 // Future: real JWT header etc. Current demo uses DEBUG fallback on backend.
 

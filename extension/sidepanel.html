@@ -134,6 +134,14 @@
       gap: 12px;
     }
 
+    /* The four brief sections are one flex child of .preview-section, so they
+       need their own gap to match the spacing between the sections above. */
+    #briefSections {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
     .preview-heading {
       font-size: var(--fs-label);
       font-weight: 700;
@@ -418,28 +426,13 @@
         <div id="followupsContainer"></div>
         <div id="previewFooter"></div>
 
-        <!-- Sections the design specifies but the current enrichment contract
-             does not populate. Rendered inert on purpose: styled, labelled
-             unavailable, and never filled with invented values. Static markup,
-             so no API/page content is interpolated here. -->
-        <div id="inertSections">
-          <div class="inert" role="note" aria-label="Buying signal: not available yet">
-            <p class="inert-title">Buying signal</p>
-            <p class="inert-note">Source and date not available yet.</p>
-          </div>
-          <div class="inert" role="note" aria-label="Contact confidence: not available yet">
-            <p class="inert-title">Contact confidence</p>
-            <p class="inert-note">Verification not available yet.</p>
-          </div>
-          <div class="inert" role="note" aria-label="Outreach email: not available yet">
-            <p class="inert-title">Outreach email</p>
-            <p class="inert-note">Full draft not available yet — use the opener above.</p>
-          </div>
-          <div class="inert" role="note" aria-label="CRM entry: not available yet">
-            <p class="inert-title">CRM entry</p>
-            <p class="inert-note">Field mapping preview not available yet.</p>
-          </div>
-        </div>
+        <!-- Buying signal / contact confidence / outreach email / CRM entry.
+             Filled by renderBriefSections() in sidepanel.js, which decides per
+             section: populated when the server sent valid data, otherwise the
+             inert block. Empty here rather than static inert markup, because
+             the branch is now a runtime decision. Every node is built with
+             createElement/textContent — no API content is ever interpolated. -->
+        <div id="briefSections"></div>
       </div>
     </div>
 

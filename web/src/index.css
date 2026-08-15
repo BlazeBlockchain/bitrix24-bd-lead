@@ -501,6 +501,163 @@ label {
   margin: 0;
 }
 
+/* ---------- populated brief sections (009) ----------
+   The counterpart to .inert above: a section the server DID populate. Solid
+   border rather than dashed, which is the whole visual tell — dashed means
+   "nothing here", solid means "this is real model output".
+
+   Shared verbatim with extension/sidepanel.html so the two surfaces cannot
+   drift. Every text node here can hold long unbroken model output (a URL in a
+   source, a subject with no spaces), so overflow-wrap is set throughout: the
+   side panel is user-resizable and must never scroll horizontally. */
+.brief-section {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px;
+  margin-bottom: var(--gap);
+}
+
+.brief-title {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.brief-text {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Attribution row. Absent source or date simply omits its chip — never a
+   placeholder, never an em dash standing in for a value we do not have. */
+.brief-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.brief-meta-item {
+  font-size: var(--fs-chip);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 2px 8px;
+  overflow-wrap: anywhere;
+}
+
+.confidence-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+/* Only ever rendered for a value that passed the enum check on BOTH sides.
+   There is deliberately no fallback style for an unknown level: an unrecognised
+   value is treated as absent and the whole section goes inert instead. */
+.confidence-pill {
+  font-size: var(--fs-chip);
+  font-weight: 700;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.confidence-pill.high {
+  background: var(--green-soft);
+  border-color: var(--green-line);
+  color: #6ee7b7;
+}
+
+.confidence-pill.medium {
+  background: var(--gold-soft);
+  border-color: var(--gold-line);
+  color: #fcd576;
+}
+
+/* Low confidence is muted, not red: it is a caveat about certainty, not an
+   error, and colouring it like a failure would misread the signal. */
+.confidence-pill.low {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-strong);
+  color: var(--text-soft);
+}
+
+.email-headers {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.email-header-row {
+  display: flex;
+  gap: 8px;
+  font-size: var(--fs-chip);
+  margin-bottom: 2px;
+}
+
+.email-header-key {
+  color: var(--muted);
+  flex: 0 0 auto;
+  min-width: 48px;
+}
+
+.email-header-value {
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* pre-wrap preserves the model's paragraph breaks without any markup, so the
+   body is still a single text node and never touches innerHTML. */
+.email-body {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* auto-fit rather than a fixed 2-col grid: the panel is resizable, so at narrow
+   widths this collapses to one column instead of overflowing. */
+.crm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.crm-field {
+  min-width: 0;
+}
+
+.crm-key {
+  font-size: var(--fs-chip);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 2px;
+}
+
+.crm-value {
+  font-size: var(--fs-chip);
+  color: var(--text);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- motion ----------
    Transform-only: visibility is never gated on opacity, so content cannot get
    stuck invisible if the animation timeline is throttled or frozen. */

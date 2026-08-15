@@ -48,6 +48,7 @@ const DOM = {
   openerContainer: document.getElementById('openerContainer'),
   followupsContainer: document.getElementById('followupsContainer'),
   previewFooter: document.getElementById('previewFooter'),
+  briefSections: document.getElementById('briefSections'),
 
   // Actions
   generateBtn: document.getElementById('generateBtn'),
@@ -276,6 +277,236 @@ function renderFollowups(followups) {
   DOM.followupsContainer.appendChild(list);
 }
 
+// ─── Brief sections: buying signal, confidence, email, CRM entry (009) ───────
+//
+// Each section renders populated when the server sent valid data for it, and
+// inert otherwise. 009 made the populated branch reachable; it did not relax the
+// rule that made these inert in 008. NOTHING here is derived client-side: no
+// confidence computed from heuristics, no subject synthesised from a company
+// name, no source inferred from a domain. If the server did not send it, the
+// section is inert — which is why every guard below interrogates the payload
+// instead of reaching for a fallback value.
+//
+// Mirrors web/src/components/Preview.tsx section for section, down to the inert
+// copy, so the two surfaces render the same brief from the same data.
+
+/** The only confidence values that may ever reach the DOM. */
+const CONFIDENCE_LEVELS = ['high', 'medium', 'low'];
+
+/** A non-empty trimmed string, or null. Whitespace-only is not a value. */
+function briefText(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+/** A plain object (not null, not an array), or null. */
+function briefObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value;
+}
+
+/**
+ * Re-checks the enum the server already checked.
+ *
+ * Not redundant: a stored enrichment could predate the server-side validator,
+ * and an unrecognised level must never be rendered raw as a pill of unknown
+ * meaning. Out of range is treated exactly like absent.
+ */
+function confidenceLevel(value) {
+  const level = briefText(value);
+  return level && CONFIDENCE_LEVELS.indexOf(level) !== -1 ? level : null;
+}
+
+/** <p class="{className}">{value}</p> — textContent, never innerHTML. */
+function makeText(tag, className, value) {
+  const el = document.createElement(tag);
+  el.className = className;
+  el.textContent = value;
+  return el;
+}
+
+/** The 008 inert presentation: styled, labelled unavailable, never invented. */
+function makeInertSection(title, note) {
+  const box = document.createElement('div');
+  box.className = 'inert';
+  box.setAttribute('role', 'note');
+  box.setAttribute('aria-label', `${title}: not available yet`);
+  box.appendChild(makeText('p', 'inert-title', title));
+  box.appendChild(makeText('p', 'inert-note', note));
+  return box;
+}
+
+/** A populated section shell: solid border + uppercase title. */
+function makeBriefSection(title) {
+  const box = document.createElement('div');
+  box.className = 'brief-section';
+  box.appendChild(makeText('p', 'brief-title', title));
+  return box;
+}
+
+function renderBuyingSignal(enrichment) {
+  const signal = briefObject(enrichment.buying_signal);
+  const summary = signal ? briefText(signal.summary) : null;
+
+  if (!summary) {
+    return makeInertSection('Buying signal', 'Source and date not available yet.');
+  }
+
+  const box = makeBriefSection('Buying signal');
+  box.appendChild(makeText('p', 'brief-text', summary));
+
+  // Source and date are independently optional: the model is instructed to omit
+  // an attribution it cannot support rather than invent one, so a summary with
+  // no source is the expected honest case, not a degraded one.
+  const source = briefText(signal.source);
+  const date = briefText(signal.date);
+  if (source || date) {
+    const meta = document.createElement('div');
+    meta.className = 'brief-meta';
+    if (source) meta.appendChild(makeText('span', 'brief-meta-item', `Source: ${source}`));
+    if (date) meta.appendChild(makeText('span', 'brief-meta-item', date));
+    box.appendChild(meta);
+  }
+
+  return box;
+}
+
+function renderContactConfidence(enrichment) {
+  const confidence = briefObject(enrichment.contact_confidence);
+  const level = confidence ? confidenceLevel(confidence.level) : null;
+  const reason = confidence ? briefText(confidence.reason) : null;
+
+  // Both or neither. A pill with no reason is unfalsifiable, which is exactly
+  // the decorative-confidence failure this section was held back to avoid.
+  if (!level || !reason) {
+    return makeInertSection('Contact confidence', 'Verification not available yet.');
+  }
+
+  const box = makeBriefSection('Contact confidence');
+
+  const row = document.createElement('div');
+  row.className = 'confidence-row';
+  // Safe as a class name because level passed the enum check above; an
+  // unvalidated value would never reach this line.
+  row.appendChild(makeText('span', `confidence-pill ${level}`, level));
+  box.appendChild(row);
+
+  box.appendChild(makeText('p', 'brief-text', reason));
+  return box;
+}
+
+function renderOutreachEmail(enrichment, recipient) {
+  const email = briefObject(enrichment.outreach_email);
+  const subject = email ? briefText(email.subject) : null;
+  const body = email ? briefText(email.body) : null;
+
+  if (!subject || !body) {
+    return makeInertSection(
+      'Outreach email',
+      'Full draft not available yet — use the opener above.',
+    );
+  }
+
+  const box = makeBriefSection('Outreach email');
+
+  const headers = document.createElement('div');
+  headers.className = 'email-headers';
+
+  // The recipient echoes what the user typed into the form. That is not a
+  // derivation of model output — it is their own input, shown back.
+  if (recipient) {
+    const toRow = document.createElement('div');
+    toRow.className = 'email-header-row';
+    toRow.appendChild(makeText('span', 'email-header-key', 'To'));
+    toRow.appendChild(makeText('span', 'email-header-value', recipient));
+    headers.appendChild(toRow);
+  }
+
+  const subjRow = document.createElement('div');
+  subjRow.className = 'email-header-row';
+  subjRow.appendChild(makeText('span', 'email-header-key', 'Subject'));
+  subjRow.appendChild(makeText('span', 'email-header-value', subject));
+  headers.appendChild(subjRow);
+
+  box.appendChild(headers);
+
+  // pre-wrap keeps the model's paragraph breaks without any markup, so the body
+  // stays one text node and never goes near innerHTML.
+  box.appendChild(makeText('p', 'email-body', body));
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'btn btn-ghost btn-sm email-copy-btn';
+  copyBtn.textContent = 'Copy email';
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`);
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => {
+        copyBtn.textContent = 'Copy email';
+      }, 2000);
+    } catch (err) {
+      console.error('Copy failed:', err.message);
+    }
+  });
+  box.appendChild(copyBtn);
+
+  return box;
+}
+
+const CRM_FIELD_LABELS = [
+  ['deal_name', 'Deal name'],
+  ['contact_role', 'Contact role'],
+  ['signal', 'Signal'],
+  ['pain_point', 'Pain point'],
+  ['pipeline', 'Pipeline'],
+];
+
+function renderCrmEntry(enrichment) {
+  const entry = briefObject(enrichment.crm_entry);
+  const fields = [];
+  if (entry) {
+    for (let i = 0; i < CRM_FIELD_LABELS.length; i++) {
+      const key = CRM_FIELD_LABELS[i][0];
+      const value = briefText(entry[key]);
+      if (value) fields.push([CRM_FIELD_LABELS[i][1], value]);
+    }
+  }
+
+  if (fields.length === 0) {
+    return makeInertSection('CRM entry', 'Field mapping preview not available yet.');
+  }
+
+  // Display-only. This feature does not change /api/leads/push or the CRM
+  // adapters, so this shows what the model proposes, not what will be sent.
+  const box = makeBriefSection('CRM entry (preview)');
+
+  const grid = document.createElement('div');
+  grid.className = 'crm-grid';
+  for (let i = 0; i < fields.length; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'crm-field';
+    cell.appendChild(makeText('p', 'crm-key', fields[i][0]));
+    cell.appendChild(makeText('p', 'crm-value', fields[i][1]));
+    grid.appendChild(cell);
+  }
+  box.appendChild(grid);
+
+  return box;
+}
+
+/**
+ * Render all four brief sections, each populated or inert on its own.
+ */
+function renderBriefSections(enrichment, recipient) {
+  DOM.briefSections.innerHTML = '';
+  DOM.briefSections.appendChild(renderBuyingSignal(enrichment));
+  DOM.briefSections.appendChild(renderContactConfidence(enrichment));
+  DOM.briefSections.appendChild(renderOutreachEmail(enrichment, recipient));
+  DOM.briefSections.appendChild(renderCrmEntry(enrichment));
+}
+
 /**
  * Render provenance footer if model_used or memory_note exists (T062).
  */
@@ -315,6 +546,9 @@ function renderPreview(enrichment) {
   renderSnapshot(enrichment.company_snapshot);
   renderOpener(enrichment.personalized_opener);
   renderFollowups(enrichment.follow_ups);
+  // The email's "To" line is the contact the user typed, read back off the form
+  // rather than taken from the model — the recipient is the user's own input.
+  renderBriefSections(enrichment, getFormValues().contact_name);
   renderPreviewFooter(enrichment);
 
   // Update form hash to track validation state
@@ -332,6 +566,7 @@ function clearPreview() {
   DOM.snapshotContainer.innerHTML = '';
   DOM.openerContainer.innerHTML = '';
   DOM.followupsContainer.innerHTML = '';
+  DOM.briefSections.innerHTML = '';
   DOM.previewFooter.innerHTML = '';
   PanelState.currentEnrichment = null;
   PanelState.lastValidatedFormHash = null;

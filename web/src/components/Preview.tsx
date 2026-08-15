@@ -1,5 +1,5 @@
 import React from 'react';
-import type { EnrichedPreview } from '../api/client';
+import { CONFIDENCE_LEVELS, type ConfidenceLevel, type EnrichedPreview } from '../api/client';
 
 interface PreviewProps {
   data?: {
@@ -20,28 +20,188 @@ interface PreviewProps {
  * Uses snake_case from backend T007/T010.
  */
 /**
- * Sections the design specifies but the enrichment contract does not populate.
+ * The four sections the design specifies beyond snapshot / opener / follow-ups.
  *
- * Rendered inert on purpose: styled in the product's visual language, labelled
- * unavailable, and never filled with invented values. Deliberately not a
- * spinner or skeleton — those imply data is on its way. This is a permanent,
- * honest "not yet", which keeps the AI output trustworthy.
+ * Each renders populated when the server sent valid data for it, and inert
+ * otherwise: styled in the product's visual language, labelled unavailable, and
+ * never filled with invented values. Deliberately not a spinner or skeleton —
+ * those imply data is on its way. This is an honest "not this time".
+ *
+ * 009 made the populated branch reachable; it did not relax the rule that made
+ * these inert in the first place. NOTHING here is derived client-side. No
+ * confidence computed from heuristics, no subject synthesised from a company
+ * name, no source inferred from a domain. If the server did not send it, the
+ * section is inert — which is why every guard below tests the payload rather
+ * than reaching for a fallback value.
  */
-const INERT_SECTIONS = [
-  { title: 'Buying signal', note: 'Source and date not available yet.' },
-  { title: 'Contact confidence', note: 'Verification not available yet.' },
-  { title: 'Outreach email', note: 'Full draft not available yet — use the opener above.' },
-  { title: 'CRM entry', note: 'Field mapping preview not available yet.' },
+const InertSection: React.FC<{ title: string; note: string }> = ({ title, note }) => (
+  <div className="inert" role="note" aria-label={`${title}: not available yet`}>
+    <p className="inert-title">{title}</p>
+    <p className="inert-note">{note}</p>
+  </div>
+);
+
+/** A non-empty string, or null. Whitespace-only is not a value. */
+const text = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+};
+
+/**
+ * Re-checks the enum the server already checked.
+ *
+ * Not redundant: EnrichedPreview carries an index signature, so the compiler
+ * cannot prove what arrived, and a stored enrichment could predate the
+ * server-side validator entirely. An unrecognised level must never reach the
+ * DOM as a pill of unknown meaning.
+ */
+const asConfidenceLevel = (value: unknown): ConfidenceLevel | null =>
+  CONFIDENCE_LEVELS.includes(value as ConfidenceLevel) ? (value as ConfidenceLevel) : null;
+
+const BuyingSignalSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched }) => {
+  const signal = enriched.buying_signal;
+  const summary = signal && typeof signal === 'object' ? text(signal.summary) : null;
+
+  if (!summary) {
+    return <InertSection title="Buying signal" note="Source and date not available yet." />;
+  }
+
+  // Source and date are independently optional: the model is instructed to omit
+  // an attribution it cannot support rather than invent one, so a summary with
+  // no source is the expected honest case, not a degraded one.
+  const source = text(signal!.source);
+  const date = text(signal!.date);
+
+  return (
+    <div className="brief-section">
+      <p className="brief-title">Buying signal</p>
+      <p className="brief-text">{summary}</p>
+      {(source || date) && (
+        <div className="brief-meta">
+          {source && <span className="brief-meta-item">Source: {source}</span>}
+          {date && <span className="brief-meta-item">{date}</span>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ContactConfidenceSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched }) => {
+  const confidence = enriched.contact_confidence;
+  const level = confidence && typeof confidence === 'object' ? asConfidenceLevel(confidence.level) : null;
+  const reason = confidence && typeof confidence === 'object' ? text(confidence.reason) : null;
+
+  // Both or neither. A pill with no reason is unfalsifiable, which is exactly
+  // the decorative-confidence failure this section was held back to avoid.
+  if (!level || !reason) {
+    return <InertSection title="Contact confidence" note="Verification not available yet." />;
+  }
+
+  return (
+    <div className="brief-section">
+      <p className="brief-title">Contact confidence</p>
+      <div className="confidence-row">
+        <span className={`confidence-pill ${level}`}>{level}</span>
+      </div>
+      <p className="brief-text">{reason}</p>
+    </div>
+  );
+};
+
+const OutreachEmailSection: React.FC<{ enriched: EnrichedPreview; recipient?: string }> = ({
+  enriched,
+  recipient,
+}) => {
+  const email = enriched.outreach_email;
+  const subject = email && typeof email === 'object' ? text(email.subject) : null;
+  const body = email && typeof email === 'object' ? text(email.body) : null;
+
+  if (!subject || !body) {
+    return (
+      <InertSection
+        title="Outreach email"
+        note="Full draft not available yet — use the opener above."
+      />
+    );
+  }
+
+  return (
+    <div className="brief-section">
+      <p className="brief-title">Outreach email</p>
+      <div className="email-headers">
+        {/* The recipient echoes what the user typed into the form. That is not a
+            derivation of model output — it is their own input, shown back. */}
+        {recipient && (
+          <div className="email-header-row">
+            <span className="email-header-key">To</span>
+            <span className="email-header-value">{recipient}</span>
+          </div>
+        )}
+        <div className="email-header-row">
+          <span className="email-header-key">Subject</span>
+          <span className="email-header-value">{subject}</span>
+        </div>
+      </div>
+      <p className="email-body">{body}</p>
+      <button
+        className="secondary"
+        style={{ marginTop: 10, fontSize: 12, padding: '4px 8px' }}
+        onClick={() => navigator.clipboard?.writeText(`Subject: ${subject}\n\n${body}`)}
+      >
+        Copy email
+      </button>
+    </div>
+  );
+};
+
+const CRM_FIELD_LABELS: Array<[string, string]> = [
+  ['deal_name', 'Deal name'],
+  ['contact_role', 'Contact role'],
+  ['signal', 'Signal'],
+  ['pain_point', 'Pain point'],
+  ['pipeline', 'Pipeline'],
 ];
 
-const InertSections: React.FC = () => (
-  <div style={{ marginTop: 16 }}>
-    {INERT_SECTIONS.map(({ title, note }) => (
-      <div key={title} className="inert" role="note" aria-label={`${title}: not available yet`}>
-        <p className="inert-title">{title}</p>
-        <p className="inert-note">{note}</p>
+const CrmEntrySection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched }) => {
+  const entry = enriched.crm_entry;
+  const fields =
+    entry && typeof entry === 'object' && !Array.isArray(entry)
+      ? CRM_FIELD_LABELS.map(([key, label]) => [label, text((entry as any)[key])] as const).filter(
+          (pair): pair is readonly [string, string] => pair[1] !== null,
+        )
+      : [];
+
+  if (fields.length === 0) {
+    return <InertSection title="CRM entry" note="Field mapping preview not available yet." />;
+  }
+
+  return (
+    <div className="brief-section">
+      {/* Display-only. This feature does not change /api/leads/push or the CRM
+          adapters, so this shows what the model proposes, not what will be sent. */}
+      <p className="brief-title">CRM entry (preview)</p>
+      <div className="crm-grid">
+        {fields.map(([label, value]) => (
+          <div className="crm-field" key={label}>
+            <p className="crm-key">{label}</p>
+            <p className="crm-value">{value}</p>
+          </div>
+        ))}
       </div>
-    ))}
+    </div>
+  );
+};
+
+const BriefSections: React.FC<{ enriched: EnrichedPreview; recipient?: string }> = ({
+  enriched,
+  recipient,
+}) => (
+  <div style={{ marginTop: 16 }}>
+    <BuyingSignalSection enriched={enriched} />
+    <ContactConfidenceSection enriched={enriched} />
+    <OutreachEmailSection enriched={enriched} recipient={recipient} />
+    <CrmEntrySection enriched={enriched} />
   </div>
 );
 
@@ -94,7 +254,7 @@ export const Preview: React.FC<PreviewProps> = ({ data, enriched }) => {
           </div>
         </div>
 
-        <InertSections />
+        <BriefSections enriched={enriched} recipient={data?.contact_name} />
       </>
     );
   }
