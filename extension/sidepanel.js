@@ -180,6 +180,12 @@ function renderSnapshot(snapshot) {
 function renderOpener(opener) {
   DOM.openerContainer.innerHTML = '';
 
+  // null means the outreach email is carrying the opening instead — leave the
+  // container empty rather than rendering an empty card.
+  if (!opener) {
+    return;
+  }
+
   const card = document.createElement('div');
   card.className = 'opener-card';
 
@@ -396,10 +402,26 @@ function renderContactConfidence(enrichment) {
   return box;
 }
 
-function renderOutreachEmail(enrichment, recipient) {
+/**
+ * The outreach email, or null when the server did not send a complete one.
+ *
+ * Shared on purpose: the email supersedes the "Suggested Opener" card when it is
+ * present, so the same validation gates both. `personalized_opener` itself is
+ * untouched in the response — it stays frozen and still builds the CRM deal
+ * comment on the push path. This is only about which of the two the brief shows.
+ */
+function validOutreachEmail(enrichment) {
   const email = briefObject(enrichment.outreach_email);
-  const subject = email ? briefText(email.subject) : null;
-  const body = email ? briefText(email.body) : null;
+  if (!email) return null;
+  const subject = briefText(email.subject);
+  const body = briefText(email.body);
+  return subject && body ? { subject, body } : null;
+}
+
+function renderOutreachEmail(enrichment, recipient) {
+  const email = validOutreachEmail(enrichment);
+  const subject = email ? email.subject : null;
+  const body = email ? email.body : null;
 
   if (!subject || !body) {
     return makeInertSection(
@@ -544,7 +566,12 @@ function renderPreview(enrichment) {
   DOM.previewSection.style.display = 'flex';
 
   renderSnapshot(enrichment.company_snapshot);
-  renderOpener(enrichment.personalized_opener);
+  // The full outreach email supersedes the opener when there is one: they are two
+  // openings for the same lead, and showing both invites the user to send a
+  // message that contradicts the one below it. When the email is absent the card
+  // stays, which is also what keeps the inert email block's "use the opener
+  // above" copy true.
+  renderOpener(validOutreachEmail(enrichment) ? null : enrichment.personalized_opener);
   renderFollowups(enrichment.follow_ups);
   // The email's "To" line is the contact the user typed, read back off the form
   // rather than taken from the model — the recipient is the user's own input.

@@ -109,13 +109,31 @@ const ContactConfidenceSection: React.FC<{ enriched: EnrichedPreview }> = ({ enr
   );
 };
 
+/**
+ * The outreach email, or null when the server did not send a complete one.
+ *
+ * Exported shape matters: the email supersedes the "Suggested Opener" card when
+ * it is present, so the same validation has to gate both. `personalized_opener`
+ * itself is untouched in the response — it stays frozen and still builds the CRM
+ * deal comment on the push path. This is purely which of the two the brief shows.
+ */
+export const validOutreachEmail = (
+  enriched: EnrichedPreview,
+): { subject: string; body: string } | null => {
+  const email = enriched.outreach_email;
+  if (!email || typeof email !== 'object') return null;
+  const subject = text(email.subject);
+  const body = text(email.body);
+  return subject && body ? { subject, body } : null;
+};
+
 const OutreachEmailSection: React.FC<{ enriched: EnrichedPreview; recipient?: string }> = ({
   enriched,
   recipient,
 }) => {
-  const email = enriched.outreach_email;
-  const subject = email && typeof email === 'object' ? text(email.subject) : null;
-  const body = email && typeof email === 'object' ? text(email.body) : null;
+  const email = validOutreachEmail(enriched);
+  const subject = email?.subject;
+  const body = email?.body;
 
   if (!subject || !body) {
     return (
@@ -221,19 +239,26 @@ export const Preview: React.FC<PreviewProps> = ({ data, enriched }) => {
           <p style={{ color: 'var(--muted)', margin: '4px 0 0' }}>{snapshot}</p>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <strong>Suggested Opener</strong>
-          <div className="card" style={{ background: 'var(--bg)', marginTop: 4, fontStyle: 'italic' }}>
-            {opener}
-            <button
-              className="secondary"
-              style={{ marginTop: 8, fontSize: 12, padding: '4px 8px' }}
-              onClick={() => navigator.clipboard?.writeText(opener)}
-            >
-              Copy
-            </button>
+        {/* The full outreach email supersedes the opener when there is one: they
+            are two openings for the same lead, and showing both invites the user
+            to send a message that contradicts the one below it. When the email is
+            absent the card stays, which is also what keeps the inert email
+            block's "use the opener above" copy true. */}
+        {!validOutreachEmail(enriched) && (
+          <div style={{ marginBottom: 16 }}>
+            <strong>Suggested Opener</strong>
+            <div className="card" style={{ background: 'var(--bg)', marginTop: 4, fontStyle: 'italic' }}>
+              {opener}
+              <button
+                className="secondary"
+                style={{ marginTop: 8, fontSize: 12, padding: '4px 8px' }}
+                onClick={() => navigator.clipboard?.writeText(opener)}
+              >
+                Copy
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div>
           <strong>Follow-up Plan (3 tasks)</strong>
