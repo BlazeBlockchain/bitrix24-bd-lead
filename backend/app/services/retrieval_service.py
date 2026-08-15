@@ -220,11 +220,28 @@ def _strip_verdict(text: str) -> str:
 async def _resolve_publisher_url(redirect_uri: str, client: httpx.AsyncClient) -> Optional[str]:
     """Follow the vertexaisearch redirect to the publisher URL.
 
-    Worth the extra request: the raw grounding URI renders as
-    "vertexaisearch.cloud.google.com" in the source chip, which tells the rep nothing
-    and implies Google is the source. Resolving it means the link text is the real
-    publisher and the rep can see the destination before clicking, which is the whole
-    point of the citation.
+    ⚠️ DELIBERATE DEVIATION FROM THE GEMINI API TERMS — PENDING LEGAL SIGN-OFF.
+    ⚠️ Do not "fix" this either way without checking with the repo owner first.
+
+    The terms state: "you will not modify, or intersperse any other content with, the
+    Grounded Results or Search Suggestions". The Link in a Grounded Result is the
+    vertexaisearch redirect URI, and replacing it with the resolved publisher URL is a
+    modification of it. We do it anyway, knowingly, and the decision is recorded in
+    specs/010-verifiable-signal-source/plan.md under the compliance note.
+
+    Why: the raw grounding URI renders as "vertexaisearch.cloud.google.com" in the
+    source chip. That tells the rep nothing, implies Google is the source, and hides
+    the destination until after the click — which defeats checkability, the entire
+    reason this feature exists. A citation the rep cannot evaluate before opening is
+    barely better than the 009 "reported in the lead brief" it replaces.
+
+    The compliant alternative is to render the redirect URI as-is. If legal declines
+    the deviation, that is the change to make here: return `redirect_uri` unmodified
+    (after the https and liveness checks) and let the chip show Google's host. Nothing
+    else in the pipeline depends on the URL being a publisher URL.
+
+    Note the sibling gap is already closed: Search Suggestions ARE now displayed, and
+    verbatim — see _validate_search_suggestions.
 
     Only the redirect is followed — the page body is never read, so there is no HTML
     parsing, no robots question, and no third-party page content in this process.

@@ -343,8 +343,23 @@ A third clause — *"you will not cache … Grounded Results"* — is arguably e
 citation on a persisted enrichment, though the terms do permit storage for "end-user chat history",
 which a saved lead brief plausibly is.
 
-**One gap remains and needs legal sign-off: we still resolve the Link.** That is a deliberate product
-choice, taken with the trade-off understood. Recorded here rather than resolved.
+### OPEN COMPLIANCE ITEM — resolving the Link (decision: keep, pending legal sign-off)
+
+**Status: kept deliberately, at the repo owner's direction, 2026-08-15.**
+
+| | |
+|---|---|
+| **Clause** | *"you will not modify, or intersperse any other content with, the Grounded Results or Search Suggestions"* |
+| **What we do** | `_resolve_publisher_url` replaces the `vertexaisearch.cloud.google.com` redirect with the resolved publisher URL |
+| **Why** | The raw redirect renders as "vertexaisearch.cloud.google.com" — it tells the rep nothing, implies Google is the source, and hides the destination until after the click. That defeats checkability, which is the entire reason this feature exists. |
+| **Risk if declined** | Terms breach on the grounding feature; worst case, loss of grounding access |
+| **Reversal** | One function. Return `redirect_uri` unmodified after the https and liveness checks; nothing downstream depends on the URL being a publisher URL. No contract, client, or test shape changes. |
+| **Owner** | Needs legal sign-off before real reps use this |
+
+Flagged in three places so it cannot be silently "tidied up": the `_resolve_publisher_url` docstring,
+`CLAUDE.md`, and here.
+
+The sibling gap — not displaying Search Suggestions — **is closed**, see below.
 
 ### Rendering the Search Suggestions — verbatim or not at all
 

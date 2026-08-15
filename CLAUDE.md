@@ -40,6 +40,25 @@ Three surfaces sit on one backend:
   silently yields 11.25px. This has already been a bug once.
 - **The side panel is user-resizable** — it must never scroll horizontally at any width.
 - **BD Lead Research skill content stays server-side.** Never embed or ship it to a client.
+- **The citation on `buying_signal` may only be set by the server, from retrieval metadata.** The
+  model cannot author a source: `_validate_buying_signal` strips `sources`/`source_url`/`finding`
+  from model JSON unconditionally. A real link that does not support its claim is worse than no link,
+  because it looks like proof — see `specs/010-verifiable-signal-source/`.
+- **`search_suggestions` is the ONLY sanctioned `innerHTML` in the codebase**, rendered into a shadow
+  root on both surfaces. Google's Search Suggestions must be displayed verbatim wherever grounded
+  results are shown, and the terms forbid modifying them — so the fragment is server-*checked* and
+  refused outright rather than sanitised, and a refusal drops the whole citation. This is not a
+  general relaxation of the no-`innerHTML` rule.
+
+## Open compliance item — needs legal sign-off
+
+`retrieval_service._resolve_publisher_url` resolves Google's grounding redirect to the real publisher
+URL. This **knowingly deviates** from the Gemini API terms ("you will not modify … the Grounded
+Results"), because the raw `vertexaisearch.cloud.google.com` link hides the destination from the rep
+and defeats the point of a citation. Decision recorded in
+[specs/010-verifiable-signal-source/plan.md](specs/010-verifiable-signal-source/plan.md). **Do not
+change it in either direction without asking the repo owner.** If legal declines, return the redirect
+URI unmodified — nothing downstream depends on it being a publisher URL.
 
 ## Design
 
