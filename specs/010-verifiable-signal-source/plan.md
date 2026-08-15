@@ -2,12 +2,12 @@
 
 **Feature Branch**: `ai-bd-assistant` · **Spec**: [spec.md](./spec.md) ·
 **Contract**: [contracts/citation-contract.md](./contracts/citation-contract.md) · **Date**: 2026-08-15
-**Status**: P1 in progress.
+**Status**: P1–P4 complete. SC-002 passed on hand-check after four rounds.
 
 ## Summary
 
-Give `buying_signal` a citation the rep can check: an `https` link plus the supporting sentence from
-the cited page. Retrieval comes from Gemini's built-in Google Search grounding, run as a **separate
+Give `buying_signal` a citation the rep can check: an `https` link to the publisher plus the grounded
+sentence attributed to it. Retrieval comes from Gemini's built-in Google Search grounding, run as a **separate
 pre-call** whose evidence is fenced into the existing enrichment prompt.
 
 **The central finding**: unlike 009, this is a capability change, and the risk it adds is not
@@ -16,9 +16,14 @@ brief claims. The design answers that with three structural defences rather than
 
 1. The model **cannot author a URL** — `source_url` is stripped from model JSON unconditionally and
    attached afterwards from retrieval metadata only.
-2. The **quote is extracted, not generated** — it is the span grounding metadata attributes to the
-   chunk, so the model cannot mis-quote a page it never quoted.
-3. A **quote cannot exist without a URL**, so every quote is one click from being falsified.
+2. The **finding comes from the retrieval call's grounded answer**, not the enrichment model's
+   free-association, and it is the same evidence text the enrichment model is given.
+   *(This defence was originally stated as "the quote is extracted from the page, so the model cannot
+   mis-quote it". P3's live probe disproved that: `groundingSupports[].segment.text` is a span of the
+   MODEL's text and the API exposes no page text at all. See P3 results.)*
+3. A **finding cannot exist without a URL**, so every finding is one click from being falsified.
+4. Retrieval asks the model to **verify a claim, not search for news** — added in P4, after an
+   open-ended search cited a real bankruptcy record for a different company with a similar name.
 
 ## Technical Context
 
@@ -28,7 +33,7 @@ brief claims. The design answers that with three structural defences rather than
 | New service | `backend/app/services/retrieval_service.py` — grounded pre-call, kept out of the already-849-line `llm_service` |
 | Retrieval provider | Gemini Google Search grounding, `gemini-2.5-flash` |
 | Renderers | `web/src/components/Preview.tsx`, `extension/sidepanel.js` |
-| Gates | `cd backend && pytest tests/` (137), `cd web && npm run build`, `make check-tokens`, `make check-icons` |
+| Gates | `cd backend && pytest tests/` (192), `cd web && npm run build`, `make check-tokens`, `make check-icons` |
 
 ### Why retrieval must be a separate call
 
@@ -39,7 +44,7 @@ this feature needs. So the architecture is forced, and it happens to be the one 
 
 ```
 retrieval_service.retrieve()      grounded call, 6s cap, NO json mode
-      │  evidence: [{uri, title, quote}]
+      │  evidence: {finding, source_url, publisher}
       ▼
 _build_prompt(..., evidence)      fenced, last, labelled untrusted
       │
@@ -47,7 +52,7 @@ _build_prompt(..., evidence)      fenced, last, labelled untrusted
 _call_gemini()                    unchanged: json mode, strict parse
       │
       ▼
-_validate_buying_signal()         STRIPS any model-authored source_url/quote
+_validate_buying_signal()         STRIPS any model-authored source_url/finding
       │
       ▼
 attach_citation()                 server attaches the validated citation
@@ -63,7 +68,7 @@ Confirmed with the user before implementation. Each phase independently shippabl
 | Phase | Scope | Ships alone? |
 |---|---|---|
 | **P1 — Contract + mock + validation** | `_validate_citation`, strip model-authored fields, `attach_citation`, full mock shape, tests for absent / malformed / `javascript:` / `data:` / `http:` / quote-without-url / over-length / model-authored. No network anywhere. | Yes — invisible; proves the shape on the mock path |
-| **P2 — Render** | Both surfaces render link + quote, re-validating the scheme client-side. Harness at 320/400/500/720 with a long real URL. | Yes — degrades to exact 009 output in prod until P3 lands |
+| **P2 — Render** | Both surfaces render link + finding, re-validating the scheme client-side. Harness at 320/400/500/720 with a long hostname. | Yes — degrades to exact 009 output in prod until P3 lands |
 | **P3 — Retrieval service** | `retrieval_service.py`: grounded pre-call, 6s timeout, evidence fencing, injection defences, query from company+signal only. Wired into `generate_enrichment`. Config: timeout, enable flag, grounding price. Tests mocked. | Yes — the capability |
 | **P4 — Live verification** | ≥6 real leads including a deliberately obscure company. Every citation opened and hand-checked. Latency + cost measured. | Yes — the acceptance gate |
 
@@ -91,7 +96,7 @@ populates the new fields — that is what makes this ordering safe.
 | `web/src/api/client.ts` | P2 | two additive optional fields |
 | `web/src/components/Preview.tsx` | P2 | citation branch + client-side scheme check |
 | `extension/sidepanel.js` | P2 | same, via `createElement`/`textContent` |
-| `extension/sidepanel.css` | P2 | citation + quote styling below the generated token block |
+| `extension/tokens.css` | P2 | citation + finding styling below the generated token block |
 
 **Untouched**: `/api/leads/push`, CRM adapters, `manifest.json`, `design/tokens.css` and the
 generated token blocks, all of `docs/design/`.
@@ -106,12 +111,12 @@ generated token blocks, all of `docs/design/`.
 | Push contract unchanged | PASS | untouched |
 | No XSS surface | PASS | `createElement`; `href` post-validation; https allowlist both sides |
 | Skill content stays server-side | PASS | FR-009 — retrieval query is company + signal only |
-| No fabricated AI output | **PASS by construction** | model cannot author a URL; quote is extracted, not generated |
+| No fabricated AI output | **PASS** | model cannot author a URL; retrieval verifies rather than searches; every citation hand-checked in P4 |
 | Untrusted input handled | PASS | fenced, delimiter-stripped, scope-limited to `buying_signal` |
-| 12px floor / no h-overflow | VERIFY | P2 harness with a long real URL |
+| 12px floor / no h-overflow | PASS | P2 harness, 320/400/500/720, long hostname |
 | Version not hand-edited | PASS | `make bump-*` |
-| Tests hermetic and offline | VERIFY | P3 mocks retrieval; NFR-002 |
-| Backend tests / web build green | VERIFY | 137 must not drop |
+| Tests hermetic and offline | PASS | verified with sockets poisoned and a key set |
+| Backend tests / web build green | PASS | 137 → 192 |
 
 ## P2 results — measured 2026-08-15
 
@@ -149,8 +154,10 @@ panel. The stress fixture is a 121-character hostname for that reason.
   way to notice. Rendering the hostname makes the link text structurally incapable of misdescribing
   the destination. This is not the client-side derivation the contract forbids: it makes no new
   claim, it renders the datum the server sent.
-- **The quote is a `<blockquote>` with a left rule**, not a boxed section — it is evidence for the
-  summary above it, not a section of its own, and the visual break signals "somebody else's words".
+- **The finding is a `<blockquote>` with a left rule**, not a boxed section — evidence for the
+  summary above it, not a section of its own. *(Superseded in P3: the blockquote and italics were
+  removed once the live probe showed this is not a page quotation. It now renders as a plain
+  `Search found:` line.)*
 
 ## P3 results — measured 2026-08-15
 
@@ -217,11 +224,81 @@ Also caught during test-writing: patching `httpx.AsyncClient` with a factory tha
 `httpx.AsyncClient` recursed until the service swallowed a `RecursionError` as a generic retrieval
 failure — a green-looking test proving nothing. The real class is now captured before patching.
 
+## P4 results — hand-checked 2026-08-15 (SC-002, SC-006)
+
+7 leads against real Gemini and real grounded retrieval, four rounds. **Every surviving citation was
+opened and read.** Three of the seven leads are deliberate traps.
+
+### Final round
+
+| Lead | Citation | Hand-check |
+|---|---|---|
+| Anthropic — $13B Series F | `anthropic.com/news/…series-f…` | ✅ *"completed a Series F fundraising of $13 billion… $183 billion post-money"* |
+| Figma — NYSE IPO | `blogs.easyequities.co.za/figma-lands-on-nyse…` | ✅ *"NYSE debut on July 31, 2025"* — date explicit |
+| Klarna — US IPO filing | `klarna.com/…/klarna-files-registration-statement…` | ✅ Form F-1 language verbatim, dated March 14 2025 |
+| **TRAP** obscure company | none | ✅ correctly declined |
+| **TRAP** ambiguous name | none | ✅ correctly declined |
+| **TRAP** false signal | none | ✅ correctly declined |
+| partial date ("in March") | none | ✅ no citation, no fabricated date (009 holds) |
+
+Latency mean **18.2s**, max **23.1s**. Mock fallbacks **0**. Citations **3/7** — and three of the four
+absences are the correct answer.
+
+### Four defects found, all by running it
+
+**1. The predicted failure, exactly. (round 1 — FAIL)**
+A deliberately FALSE signal — "Notion announced it is shutting down and filing for bankruptcy" —
+produced a real PACER federal court record for **"Get Notion, LLC"**, a different, similarly-named
+company. The brief would have corroborated a false premise with an official-looking court citation:
+worse than no citation and worse than a fabricated one, because it is independently verifiable and
+still wrong.
+
+Root cause was the framing. Retrieval asked *"search for news about X"* — a question that has an
+answer for any input, so something is always findable and the model finds something. It now asks
+*"verify this claim about this entity"*, which can answer **no**, with namesakes, subsidiaries,
+same-name businesses in other jurisdictions, and different-events named as mandatory rejections. The
+verdict is a machine-checked `CONFIRMED:` prefix rather than prose inspected for the absence of a
+denial.
+
+**2. Evidence silently collapsed 3 of 7 leads to the mock. (round 1)**
+Adding evidence to the prompt made responses longer and the JSON truncated mid-string at
+`max_output_tokens: 4096` — raised to 8192. This is precisely the failure the 009 comment on that
+constant warned about, re-triggered by a new cause. A mock brief also now carries **no citation at
+all**: round 1 paired a real court-records link with *"That opens a short window to start a
+conversation"*, lending borrowed authority to generic filler nothing grounded.
+
+**3. A real, correctly-resolved URL that opens on nothing. (round 2 — FAIL)**
+A true Figma claim cited `ebc.com/forex/figma-ipo-…`, which itself 302s to a broker's homepage with
+no mention of Figma. Real link, true claim, and a rep clicking it lands on CFD marketing. Resolving
+one hop from the grounding redirect is not enough. A liveness probe now HEADs the resolved URL and
+drops the citation on 4xx/5xx or a cross-host bounce; same-site hops (`www.`, trailing slash) pass.
+
+**4. One sentence, five sources, one link. (round 3 — FAIL)**
+The Klarna citation asserted "Form F-1… on March 14, 2025" against a page carrying neither. The
+grounding metadata showed why: a single support cited `groundingChunkIndices [0,1,2,3,4]` — the
+sentence is a **synthesis across five pages**, no one of which need contain all of it — and the code
+attributed it to index 0, `ultimamarkets.com`, while `klarna.com` sat unused at index 4. Retrieval
+now prefers the company's **own domain** among the cited chunks, which is both a better source for
+the rep and far likelier to state the specifics, since it is the company announcing its own news.
+
+### Known gap
+
+**Multi-chunk synthesis is mitigated, not solved.** When a support cites several chunks we still show
+one link beside a sentence the provider attributes to all of them. Preferring the primary source
+makes the shown link the one most likely to carry the detail, and the liveness probe ensures it
+opens — but this is not a proof of attribution. Fully closing it means citing only sentences the
+provider attributes to exactly one chunk, which would cut citation yield sharply. Worth revisiting
+with real usage data on how often the single-chunk case occurs.
+
+**Source quality is uncontrolled** where the company has no own-domain page in the results — the
+Figma citation is a South African broker's blog, which is accurate here but not what a rep would
+choose. There is no reputation ranking beyond the primary-source preference.
+
 ## Risks
 
 | Risk | Mitigation |
 |---|---|
-| **A real link that does not support the claim.** The failure this feature exists to prevent, and the one most likely to occur | Quote extracted from grounding metadata rather than generated; quote requires URL; hand-check of ≥6 real enrichments in P4 including an obscure company, where the temptation to cite something adjacent is highest. One unsupportive citation is a FAIL |
+| **A real link that does not support the claim.** The failure this feature exists to prevent, and the one most likely to occur — **it occurred, three times, in three distinct forms** | Retrieval verifies a claim rather than searching for news, with a machine-checked `CONFIRMED:` verdict; a liveness probe drops links that 404 or bounce off-host; the company's own domain is preferred among cited chunks; finding requires URL. All four defences were added *because* P4 caught the corresponding failure — none were sufficient in advance |
 | **Prompt injection from a retrieved page** | Evidence fenced last, labelled untrusted, delimiters stripped; scope-limited to `buying_signal`; instructions inside evidence are grounds to discard the chunk |
 | Model emits its own plausible URL now that it has a retrieval context | Stripped unconditionally in `_validate_buying_signal`, and logged — the log is also the P4 signal for how often it tries |
 | Retrieval latency pushes the flow past the point a rep assumes it hung | 6s cap; timeout degrades to 009 output, never fails the enrichment |
@@ -240,10 +317,12 @@ failure — a green-looking test proving nothing. The real class is now captured
    whole complaint is that the rep cannot check it. The obligations (https allowlist, post-validation
    `href`, `rel="noopener noreferrer"`, no template strings) are bounded and accepted. MV3 CSP does
    not restrict outbound links, so no manifest change.
-3. **Must the model quote the supporting sentence?** — **The quote is required, but the model does
-   not write it.** It is the span grounding metadata attributes to the chunk, which is categorically
-   stronger than a prompt rule: the model cannot mis-quote text it never quoted. Capped at 240 chars
-   to prevent a paragraph of licensed text passing through.
+3. **Must the model quote the supporting sentence?** — **Answered yes, then overturned by
+   measurement.** The plan assumed grounding metadata exposes the source page's text. It does not:
+   `segment.text` is a span of the model's own answer. There is no page quote to be had without
+   fetching and parsing the page, which is out of scope. The field became `finding` — the grounded,
+   provider-attributed sentence, which is also the exact evidence the enrichment model receives —
+   and is never presented as a quotation. Capped at 240 chars.
 4. **What happens when retrieval finds nothing?** — **Exactly today's 009 behaviour.** Summary with
    no source link. Not an error, not a weaker guess, no partial render.
 5. **Latency budget?** — **6s retrieval cap, ~20s total.** Timeout degrades per (4). Retrieval is the

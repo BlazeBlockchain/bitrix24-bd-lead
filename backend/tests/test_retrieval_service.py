@@ -31,8 +31,11 @@ PUBLISHER_URL = "https://techcrunch.com/2026/01/15/acme-series-b"
 LEAD = {"company_name": "Acme Logistics", "signal": "closed a $40M Series B"}
 
 
+CONFIRMED_ANSWER = "CONFIRMED: Acme Logistics closed a $40M Series B in January 2026."
+
+
 def _grounded_body(
-    answer="Acme Logistics closed a $40M Series B in January 2026.",
+    answer=CONFIRMED_ANSWER,
     supports=True,
     chunks=None,
 ):
@@ -81,18 +84,27 @@ def transport(monkeypatch):
     return install
 
 
-def _handler(generate_body, *, redirect_to=PUBLISHER_URL, generate_status=200, sent=None):
+def _handler(generate_body, *, redirect_to=PUBLISHER_URL, generate_status=200, sent=None,
+             live_status=200, live_bounces_to=None):
+    """Scripts three hops: the grounded call, the redirect resolution, the liveness check."""
     def handle(request: httpx.Request) -> httpx.Response:
         if sent is not None:
             sent.append(request)
-        if "generateContent" in str(request.url):
+        url = str(request.url)
+        if "generateContent" in url:
             if generate_status != 200:
                 return httpx.Response(generate_status, json={"error": "boom"})
             return httpx.Response(200, json=generate_body)
-        # The redirect-resolution request.
-        if redirect_to is None:
-            return httpx.Response(200, text="no location header")
-        return httpx.Response(302, headers={"location": redirect_to})
+        if "grounding-api-redirect" in url or "vertexaisearch" in url:
+            if redirect_to is None:
+                return httpx.Response(200, text="no location header")
+            return httpx.Response(302, headers={"location": redirect_to})
+        # The liveness probe on the resolved publisher URL. Bounce ONCE — httpx follows
+        # redirects here, so an unconditional 302 would loop until TooManyRedirects and
+        # make every case look like a dead link.
+        if live_bounces_to and url != live_bounces_to:
+            return httpx.Response(302, headers={"location": live_bounces_to})
+        return httpx.Response(live_status)
 
     return handle
 
@@ -103,6 +115,7 @@ class TestRetrievalHappyPath:
     async def test_returns_finding_and_resolved_publisher_url(self, transport):
         transport(_handler(_grounded_body()))
         result = await retrieve_signal_evidence(LEAD)
+        # The CONFIRMED: prefix is protocol for the server, not content for the rep.
         assert result["finding"] == "Acme Logistics closed a $40M Series B in January 2026."
         assert result["publisher"] == "techcrunch.com"
 
@@ -117,6 +130,37 @@ class TestRetrievalHappyPath:
         result = await retrieve_signal_evidence(LEAD)
         assert result["source_url"] == PUBLISHER_URL
         assert "vertexaisearch" not in result["source_url"]
+
+    @pytest.mark.asyncio
+    async def test_prefers_the_companys_own_domain_among_cited_chunks(self, transport):
+        """The Klarna P4 defect, in miniature.
+
+        One support cited five chunks — the sentence is a synthesis, not a quote from
+        any single page. Taking the first index picked a forex broker while klarna.com
+        sat unused, and the resulting citation did not carry the Form F-1 detail or the
+        filing date the finding asserted. A primary source is both better for the rep
+        and likelier to state the specifics.
+        """
+        body = _grounded_body(chunks=[
+            {"web": {"uri": REDIRECT_URI + "/0", "title": "ultimamarkets.com"}},
+            {"web": {"uri": REDIRECT_URI + "/1", "title": "capital.com"}},
+            {"web": {"uri": REDIRECT_URI + "/2", "title": "acmelogistics.com"}},
+        ])
+        body["candidates"][0]["groundingMetadata"]["groundingSupports"][0]["groundingChunkIndices"] = [0, 1, 2]
+        transport(_handler(body))
+        result = await retrieve_signal_evidence(LEAD)
+        assert result["publisher"] == "acmelogistics.com"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_the_first_cited_chunk(self, transport):
+        """No primary source among the citations is normal, not a failure."""
+        body = _grounded_body(chunks=[
+            {"web": {"uri": REDIRECT_URI + "/0", "title": "techcrunch.com"}},
+            {"web": {"uri": REDIRECT_URI + "/1", "title": "capital.com"}},
+        ])
+        body["candidates"][0]["groundingMetadata"]["groundingSupports"][0]["groundingChunkIndices"] = [0, 1]
+        transport(_handler(body))
+        assert (await retrieve_signal_evidence(LEAD))["publisher"] == "techcrunch.com"
 
     @pytest.mark.asyncio
     async def test_prefers_a_chunk_something_actually_cites(self, transport):
@@ -154,6 +198,51 @@ class TestRetrievalDegradesToNine:
         """A grounded search that found nothing must not be dressed up as a citation."""
         transport(_handler(_grounded_body(answer="NOTHING FOUND")))
         assert await retrieve_signal_evidence(LEAD) is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("hedged", [
+        "I found some related coverage that may be relevant.",
+        "Acme Logistics appears to have closed a Series B, though sources vary.",
+        "Probably confirmed: Acme closed a round.",
+        "",
+    ])
+    async def test_anything_short_of_an_explicit_confirmation_is_nothing(self, transport, hedged):
+        """The verdict is checked, not inferred from prose.
+
+        P4's defining failure was an open-ended search returning a real PACER filing
+        for "Get Notion, LLC" against a claim about Notion — a different company with
+        a similar name. Something is always findable, so an answer that merely fails
+        to say "nothing" is not evidence of anything.
+        """
+        transport(_handler(_grounded_body(answer=hedged)))
+        assert await retrieve_signal_evidence(LEAD) is None
+
+    @pytest.mark.asyncio
+    async def test_dead_citation_is_dropped(self, transport):
+        """A citation the rep cannot open is not a citation."""
+        transport(_handler(_grounded_body(), live_status=404))
+        assert await retrieve_signal_evidence(LEAD) is None
+
+    @pytest.mark.asyncio
+    async def test_citation_that_bounces_to_another_host_is_dropped(self, transport):
+        """The P4 defect: a real, correctly-resolved URL that 302s to a broker homepage.
+
+        The claim was true and the link was real, but a rep clicking it landed on CFD
+        marketing with no mention of the company. Attributing to a page that no longer
+        says anything is the same defect as citing the wrong page.
+        """
+        transport(_handler(_grounded_body(), live_bounces_to="https://www.ebcfin.co.uk/"))
+        assert await retrieve_signal_evidence(LEAD) is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("same_site", [
+        "https://www.techcrunch.com/2026/01/15/acme-series-b",
+        "https://techcrunch.com/2026/01/15/acme-series-b/",
+    ])
+    async def test_same_site_redirect_is_fine(self, transport, same_site):
+        """www, trailing slash and locale hops are normal and must not drop a citation."""
+        transport(_handler(_grounded_body(), live_bounces_to=same_site))
+        assert await retrieve_signal_evidence(LEAD) is not None
 
     @pytest.mark.asyncio
     async def test_http_error_is_swallowed(self, transport):

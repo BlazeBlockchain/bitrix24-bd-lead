@@ -791,7 +791,12 @@ async def _call_gemini(prompt: str) -> Optional[dict[str, Any]]:
                 # three follow-ups with descriptions, and a JSON object cut off partway is
                 # unparseable, so every field fell back to placeholder text. Reasoning
                 # tokens count against this budget too on 2.5-class models.
-                "max_output_tokens": 4096,
+                # 010 raised this from 4096. Adding retrieved evidence to the prompt
+                # makes the model write MORE, and at 4096 the JSON truncated mid-string
+                # on 3 of 7 P4 leads — each one silently collapsing to the mock, which
+                # is the exact failure the 009 note below warned about, triggered by a
+                # new cause. Reasoning tokens count against this budget too.
+                "max_output_tokens": 8192,
             },
         )
 
@@ -958,7 +963,18 @@ async def generate_enrichment(
     # It is attached to a mock result too. The mock ships a placeholder citation, and
     # leaving that in place when a real one exists would show example.com over a brief
     # the rep may act on.
-    if evidence:
+    if result.get("mock"):
+        # A mock brief is generic filler that no model grounded in anything, so it gets
+        # no source — neither the real one nor the placeholder the mock ships. P4 showed
+        # why this matters: a truncated Gemini response fell back to mock, and the brief
+        # then paired "That opens a short window to start a conversation" with a real
+        # court-records link. A citation next to text nothing grounded lends borrowed
+        # authority, which is the opposite of what a citation is for.
+        signal = result.get("buying_signal")
+        if isinstance(signal, dict):
+            signal.pop("source_url", None)
+            signal.pop("finding", None)
+    elif evidence:
         attach_citation(result, evidence["source_url"], evidence["finding"])
 
     # Real provider token counts, priced from the table in config. Popped here so the

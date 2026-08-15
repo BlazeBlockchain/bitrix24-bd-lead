@@ -578,6 +578,25 @@ class TestRetrievalWiring:
         assert "invented-by-the-model" not in str(result)
 
     @pytest.mark.asyncio
+    async def test_a_mock_brief_carries_no_citation(self, mock_lead_input, mock_current_user):
+        """Borrowed authority is worse than no authority.
+
+        When Gemini fails the brief falls back to generic mock filler. Pairing that
+        with a real source link implies the source supports text nothing grounded —
+        which P4 produced for real, attaching a court-records link to "That opens a
+        short window to start a conversation".
+        """
+        with patch("app.services.llm_service.retrieve_signal_evidence", AsyncMock(return_value=self.EVIDENCE)), \
+             patch("app.services.llm_service._call_gemini", AsyncMock(return_value=None)), \
+             patch("app.services.llm_service._call_haiku", AsyncMock(return_value=None)):
+            result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+        assert result["mock"] is True
+        assert "source_url" not in result["buying_signal"]
+        assert "finding" not in result["buying_signal"]
+        # And the mock's own placeholder citation is gone too.
+        assert "example.com" not in str(result)
+
+    @pytest.mark.asyncio
     async def test_evidence_is_fenced_into_the_prompt(self, mock_lead_input, mock_current_user):
         """Untrusted third-party text must arrive labelled, not inlined."""
         seen = {}
