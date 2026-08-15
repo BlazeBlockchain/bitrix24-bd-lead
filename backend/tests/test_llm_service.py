@@ -17,10 +17,13 @@ from datetime import datetime, timedelta
 
 from app.services.llm_service import (
     generate_enrichment,
+    attach_citation,
     _parse_structured_json,
     _build_memory_context,
     _mock_generate,
     _reset_usage_ledger_for_tests,
+    _validate_citation,
+    QUOTE_MAX_CHARS,
 )
 
 
@@ -434,6 +437,75 @@ class TestBuyingSignalField:
             "summary": "Closed a round.", "date": bad_date,
         }))
         assert "date" not in result["buying_signal"]
+
+
+@pytest.mark.service
+class TestSignalCitation:
+    """010: the citation is the one field the model is NOT allowed to author."""
+
+    def test_model_authored_url_is_stripped(self):
+        """The defence that makes retrieval safe to add at all.
+
+        Once the model is shown retrieved evidence it has every incentive to emit a
+        plausible URL of its own. Nothing about the string distinguishes a real citation
+        from an invented one, so provenance is enforced structurally instead: model JSON
+        can never set this key, however well-formed it looks.
+        """
+        result = _parse_structured_json(_envelope(buying_signal={
+            "summary": "Closed a round.",
+            "source_url": "https://techcrunch.com/2026/01/15/acme-series-b",
+            "quote": "Acme has raised a $40M Series B.",
+        }))
+        assert "source_url" not in result["buying_signal"]
+        assert "quote" not in result["buying_signal"]
+        assert result["buying_signal"]["summary"] == "Closed a round."
+        _assert_frozen_three_intact(result)
+
+    def test_attach_citation_is_the_sanctioned_path(self):
+        result = _parse_structured_json(_envelope(buying_signal={"summary": "Closed a round."}))
+        attach_citation(result, "https://example.com/a", "Acme has raised a $40M Series B.")
+        assert result["buying_signal"]["source_url"] == "https://example.com/a"
+        assert result["buying_signal"]["quote"] == "Acme has raised a $40M Series B."
+
+    def test_url_survives_without_a_quote(self):
+        """A URL with no attributed span is weaker, but honest."""
+        assert _validate_citation("https://example.com/a") == {"source_url": "https://example.com/a"}
+
+    def test_quote_without_url_drops_both(self):
+        """An uncheckable quote is a fabrication surface, not evidence."""
+        assert _validate_citation(None, "Acme has raised a $40M Series B.") is None
+
+    @pytest.mark.parametrize("bad_url", [
+        "javascript:alert(1)",
+        "data:text/html;base64,PHNjcmlwdD4=",
+        "http://example.com/a",       # downgradeable in transit
+        "//example.com/a",            # no scheme
+        "https://",                   # no host
+        "example.com/a",
+        "",
+        "   ",
+        None,
+        12345,
+    ])
+    def test_disallowed_url_yields_no_citation(self, bad_url):
+        assert _validate_citation(bad_url, "A supporting sentence.") is None
+
+    def test_quote_is_length_capped(self):
+        """A cap, not a rejection: the span is real, we just refuse to relay a paragraph."""
+        citation = _validate_citation("https://example.com/a", "x" * 5000)
+        assert len(citation["quote"]) == QUOTE_MAX_CHARS
+
+    def test_citation_needs_a_signal_to_support(self):
+        """A citation with nothing to support is an unsupported claim by definition."""
+        result = _parse_structured_json(_envelope())
+        attach_citation(result, "https://example.com/a", "A supporting sentence.")
+        assert "buying_signal" not in result
+
+    def test_mock_carries_a_citation(self):
+        """FR-011: the no-key path must exercise the populated presentation."""
+        signal = _mock_generate({"company_name": "Acme", "signal": "closed a round"}, "")["buying_signal"]
+        assert signal["source_url"].startswith("https://")
+        assert signal["quote"]
 
 
 @pytest.mark.service

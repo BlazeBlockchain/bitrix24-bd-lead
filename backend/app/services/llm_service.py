@@ -27,6 +27,7 @@ import os
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 from app.config import settings
 from app.services.skill_loader import get_skill_methodology
@@ -387,7 +388,13 @@ def _validate_signal_date(value: Any) -> Optional[str]:
 
 
 def _validate_buying_signal(raw: Any) -> Optional[dict[str, Any]]:
-    """summary is required; source and date drop individually when unsupportable."""
+    """summary is required; source and date drop individually when unsupportable.
+
+    010: `source_url` and `quote` are stripped here unconditionally, no matter how
+    well-formed they look. They are attached afterwards by `attach_citation` from
+    retrieval metadata, and that is the ONLY path that may set them. See the docstring
+    on `_validate_citation` for why the model is not allowed to author a URL.
+    """
     if not isinstance(raw, dict):
         return None
     summary = _clean_str(raw.get("summary"), 400)
@@ -400,7 +407,91 @@ def _validate_buying_signal(raw: Any) -> Optional[dict[str, Any]]:
     date = _validate_signal_date(raw.get("date"))
     if date:
         out["date"] = date
+    for authored in ("source_url", "quote"):
+        if raw.get(authored) is not None:
+            # Worth a log line rather than a silent drop: how often the model reaches
+            # for a URL once it has been shown retrieved evidence is exactly the
+            # measurement P4 needs, and it is invisible if we discard it quietly.
+            logger.info("Dropping model-authored buying_signal.%s: citations come from retrieval only", authored)
     return out
+
+
+# ─── Citation validation (010) ────────────────────────────────────────────────
+# 009 left `source` honest but uninformative: 5/5 real enrichments attributed the signal
+# to "the lead brief", which is where the user typed it. Retrieval fixes that, and in
+# doing so RELOCATES the fabrication risk rather than removing it — the model can now
+# cite a real page that does not say what the brief claims. A confident link to a real
+# page that does not support the claim is worse than no link at all, because it looks
+# like proof.
+#
+# Three structural defences, none of which rely on the model behaving:
+#   1. The model cannot author a URL. `_validate_buying_signal` strips source_url/quote
+#      from model JSON unconditionally; only `attach_citation` may set them.
+#   2. The quote is EXTRACTED from grounding metadata, not generated. The model cannot
+#      mis-quote a page it never quoted.
+#   3. A quote cannot survive without a URL, so every quote is one click from being
+#      falsified by the rep.
+
+CITATION_ALLOWED_SCHEMES = ("https",)
+QUOTE_MAX_CHARS = 240
+SOURCE_URL_MAX_CHARS = 2000
+
+
+def _validate_source_url(value: Any) -> Optional[str]:
+    """An https URL with a host — or None.
+
+    http is excluded alongside javascript: and data:. The latter two are the attack
+    cases; http is refused because a citation we invite the rep to click should not be
+    downgradeable in transit, and any publisher worth citing serves https.
+    """
+    text = _clean_str(value, SOURCE_URL_MAX_CHARS)
+    if not text:
+        return None
+    try:
+        parts = urlsplit(text)
+    except ValueError:
+        return None
+    if parts.scheme.lower() not in CITATION_ALLOWED_SCHEMES:
+        logger.info("Dropping citation URL: scheme %r not allowed", parts.scheme)
+        return None
+    if not parts.hostname:
+        return None
+    return text
+
+
+def _validate_citation(url: Any, quote: Any = None) -> Optional[dict[str, str]]:
+    """A validated {source_url, quote?} — or None.
+
+    Quote-without-URL returns None for BOTH: an uncheckable quote is a fabrication
+    surface, not evidence. The reverse is fine — a URL with no supporting span is a
+    weaker citation, but an honest one.
+    """
+    source_url = _validate_source_url(url)
+    if not source_url:
+        return None
+    out = {"source_url": source_url}
+    text = _clean_str(quote, QUOTE_MAX_CHARS)
+    if text:
+        out["quote"] = text
+    return out
+
+
+def attach_citation(preview: dict[str, Any], url: Any, quote: Any = None) -> dict[str, Any]:
+    """Attach a retrieval-sourced citation to `buying_signal`, in place.
+
+    The only sanctioned path for setting `source_url`/`quote`. A citation with no
+    buying_signal to hang on is dropped: there would be nothing for it to support, and
+    a floating citation is the definition of an unsupported claim.
+    """
+    citation = _validate_citation(url, quote)
+    if not citation:
+        return preview
+    signal = preview.get("buying_signal")
+    if not isinstance(signal, dict) or not signal.get("summary"):
+        logger.info("Dropping citation: no buying_signal.summary for it to support")
+        return preview
+    signal.update(citation)
+    return preview
 
 
 def _validate_contact_confidence(raw: Any) -> Optional[dict[str, Any]]:
@@ -617,7 +708,7 @@ def _mock_generate(lead_brief: dict, memory_ctx: str) -> dict[str, Any]:
         f"Best,\nThe team"
     )
 
-    return {
+    result = {
         "company_snapshot": snapshot,
         "personalized_opener": opener,
         "follow_ups": tasks,
@@ -644,6 +735,22 @@ def _mock_generate(lead_brief: dict, memory_ctx: str) -> dict[str, Any]:
         "model_used": "mock-llm",
         "mock": True,
     }
+    # 010: the mock carries a citation so the no-API-key path and the tests exercise the
+    # populated presentation rather than the 009 one. It goes through attach_citation
+    # rather than being written inline, so the mock walks the same sanctioned path as
+    # retrieval and cannot drift from it.
+    #
+    # example.com is deliberate. RFC 2606 reserves it as a non-resolving placeholder, so
+    # this cannot be mistaken for a real citation — extending the rule the 009 mock set
+    # for `source`: a mock may be wrong about the world, but it must never model
+    # fabrication as acceptable, because it is also the fixture developers read to learn
+    # what good output looks like.
+    attach_citation(
+        result,
+        f"https://example.com/newsroom/{signal_type}",
+        f"Example Newsroom reports that {company} {signal}.",
+    )
+    return result
 
 
 # ─── Provider calls (Gemini primary, Haiku fallback) ──────────────────────────
