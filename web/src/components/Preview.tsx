@@ -102,18 +102,19 @@ const BuyingSignalSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched
   const source = text(signal!.source);
   const date = text(signal!.date);
 
-  // 010: the citation. The quote is evidence FOR the summary, so it cannot
-  // outlive the link that makes it checkable — an uncheckable quote is a
-  // fabrication surface, not evidence. The server enforces the same pairing;
-  // this is the both-sides re-check.
+  // 010: the citation. The finding is what a grounded search returned, attributed
+  // by the provider to this source — not a quotation from it. It cannot outlive
+  // the link that makes it checkable, since an unattributable claim is a
+  // fabrication surface rather than evidence. The server enforces the same
+  // pairing; this is the both-sides re-check.
   const url = httpsUrl(signal!.source_url);
-  const quote = url ? text(signal!.quote) : null;
+  const finding = url ? text(signal!.finding) : null;
 
   return (
     <div className="brief-section">
       <p className="brief-title">Buying signal</p>
       <p className="brief-text">{summary}</p>
-      {quote && <blockquote className="brief-quote">{quote}</blockquote>}
+      {finding && <p className="brief-finding">Search found: {finding}</p>}
       {(source || date || url) && (
         <div className="brief-meta">
           {/* When a real link exists it replaces the plain attribution rather than

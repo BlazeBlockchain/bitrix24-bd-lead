@@ -66,6 +66,24 @@ class Settings(BaseSettings):
     # silently free. Deliberately on the expensive side.
     LLM_PRICE_CENTS_PER_MTOK_DEFAULT: dict[str, float] = {"in": 100.0, "out": 500.0}
 
+    # Signal retrieval (010): grounded Google Search, run as a pre-call before
+    # enrichment. See app/services/retrieval_service.py for why it cannot share the
+    # enrichment call. Disabling it degrades every brief to exactly the 009 output —
+    # a buying signal with no source link — never to an error.
+    RETRIEVAL_ENABLED: bool = True
+    # 6s. A grounded search typically returns in 3-6s against ~14s for the enrichment
+    # itself, so this keeps the flow inside ~20s. Past that, with no progress
+    # indicator on the brief, a rep assumes it has hung. Exceeding this degrades to
+    # the no-source path; it never fails the enrichment.
+    RETRIEVAL_TIMEOUT_SECONDS: float = 6.0
+    # Grounding is billed per grounded prompt, NOT per token, so it does not belong in
+    # LLM_PRICE_CENTS_PER_MTOK. Free under 1,500 requests/day, then $35 per 1,000 =
+    # 3.5 cents each — roughly 4x the ~0.91 cents an entire enrichment costs today, so
+    # at volume this becomes the dominant line item rather than a rounding error.
+    # Same caveat as the token prices: list rate verified 2026-08-15, never fetched.
+    RETRIEVAL_PRICE_CENTS_PER_CALL: float = 3.5
+    RETRIEVAL_FREE_CALLS_PER_DAY: int = 1500
+
     # Encryption (T006/T012): master KEK for envelope-encrypting stored CRM credentials
     # (see app/services/token_vault.py). Empty in dev falls back to a hardcoded dev-only
     # key there; MUST be set to a real secret (32+ bytes) in any shared/prod environment.

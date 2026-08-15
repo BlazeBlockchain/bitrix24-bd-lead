@@ -30,6 +30,7 @@ from typing import Any, Optional
 from urllib.parse import urlsplit
 
 from app.config import settings
+from app.services.retrieval_service import fence_evidence, retrieve_signal_evidence
 from app.services.skill_loader import get_skill_methodology
 
 logger = logging.getLogger(__name__)
@@ -224,7 +225,7 @@ def _build_memory_context(user: dict | None, memory_context: dict | None = None)
 
 
 # ─── Prompt builder ───────────────────────────────────────────────────────────
-def _build_prompt(lead_brief: dict, memory_ctx: str) -> str:
+def _build_prompt(lead_brief: dict, memory_ctx: str, evidence: str = "") -> str:
     """Builds the system+user prompt for structured enrichment.
     Includes: encrypted skill methodology + lead brief + injected memory + JSON contract.
 
@@ -256,6 +257,11 @@ def _build_prompt(lead_brief: dict, memory_ctx: str) -> str:
         "AVOID:              [Any industry/type constraints]\n"
         "OUTREACH LANGUAGE:  [English]\n"
     )
+
+    # Retrieved evidence is UNTRUSTED third-party text. It is fenced by
+    # retrieval_service.fence_evidence and placed LAST, after the output contract, so
+    # that nothing inside it can be read as the instruction that governs the response.
+    evidence_block = f"\n\n{evidence}\n" if evidence else ""
 
     return f"""{skill_methodology}
 
@@ -295,7 +301,9 @@ REQUIREMENTS (strict output contract)
 4. buying_signal: your assessment of the trigger, with
    - summary (1 sentence: what the signal is and why it matters now)
    - source (where the signal came from, as a short plain-text attribution such as
-     "company blog" or "reported in the lead brief" — NOT a URL you cannot verify)
+     "company blog" or "reported in the lead brief" — NEVER a URL. Do not output a
+     source_url or a quote: citations are attached by the server from what it
+     actually retrieved, and any URL you write is discarded.)
    - date (YYYY-MM-DD) — include ONLY if the lead brief states a complete,
      unambiguous date. If it gives a month with no year ("in March"), a quarter, a
      season, or a vague word ("recently", "last year"), OMIT the date key entirely.
@@ -344,7 +352,7 @@ Respond ONLY with a single valid minified JSON object, exactly this shape and no
 No prose, no markdown, no ```json fences, no text before or after the JSON. Use exactly
 the keys shown above and no others — except that any key you cannot support honestly
 (source, date, or a whole object) must be omitted rather than filled with a guess.
-"""
+{evidence_block}"""
 
 
 # ─── Additive field validation (009) ──────────────────────────────────────────
@@ -407,7 +415,7 @@ def _validate_buying_signal(raw: Any) -> Optional[dict[str, Any]]:
     date = _validate_signal_date(raw.get("date"))
     if date:
         out["date"] = date
-    for authored in ("source_url", "quote"):
+    for authored in ("source_url", "finding", "quote"):
         if raw.get(authored) is not None:
             # Worth a log line rather than a silent drop: how often the model reaches
             # for a URL once it has been shown retrieved evidence is exactly the
@@ -427,13 +435,17 @@ def _validate_buying_signal(raw: Any) -> Optional[dict[str, Any]]:
 # Three structural defences, none of which rely on the model behaving:
 #   1. The model cannot author a URL. `_validate_buying_signal` strips source_url/quote
 #      from model JSON unconditionally; only `attach_citation` may set them.
-#   2. The quote is EXTRACTED from grounding metadata, not generated. The model cannot
-#      mis-quote a page it never quoted.
-#   3. A quote cannot survive without a URL, so every quote is one click from being
-#      falsified by the rep.
+#   2. The `finding` is the RETRIEVAL call's grounded sentence, which the grounding
+#      metadata attributes to this specific source, and it is the same evidence text
+#      the enrichment model is given. The rep sees the model's actual input.
+#      NOTE: it is NOT a quotation from the page. The API's groundingSupports carry
+#      spans of the MODEL's text, not the source's, so no page quote is available —
+#      which is why this field is `finding` and is never rendered as a quote.
+#   3. A finding cannot survive without a URL, so every finding is one click from
+#      being falsified by the rep.
 
 CITATION_ALLOWED_SCHEMES = ("https",)
-QUOTE_MAX_CHARS = 240
+FINDING_MAX_CHARS = 240
 SOURCE_URL_MAX_CHARS = 2000
 
 
@@ -459,31 +471,31 @@ def _validate_source_url(value: Any) -> Optional[str]:
     return text
 
 
-def _validate_citation(url: Any, quote: Any = None) -> Optional[dict[str, str]]:
+def _validate_citation(url: Any, finding: Any = None) -> Optional[dict[str, str]]:
     """A validated {source_url, quote?} — or None.
 
-    Quote-without-URL returns None for BOTH: an uncheckable quote is a fabrication
-    surface, not evidence. The reverse is fine — a URL with no supporting span is a
-    weaker citation, but an honest one.
+    Finding-without-URL returns None for BOTH: an unattributable claim is a
+    fabrication surface, not evidence. The reverse is fine — a URL with no finding is
+    a weaker citation, but an honest one.
     """
     source_url = _validate_source_url(url)
     if not source_url:
         return None
     out = {"source_url": source_url}
-    text = _clean_str(quote, QUOTE_MAX_CHARS)
+    text = _clean_str(finding, FINDING_MAX_CHARS)
     if text:
-        out["quote"] = text
+        out["finding"] = text
     return out
 
 
-def attach_citation(preview: dict[str, Any], url: Any, quote: Any = None) -> dict[str, Any]:
+def attach_citation(preview: dict[str, Any], url: Any, finding: Any = None) -> dict[str, Any]:
     """Attach a retrieval-sourced citation to `buying_signal`, in place.
 
     The only sanctioned path for setting `source_url`/`quote`. A citation with no
     buying_signal to hang on is dropped: there would be nothing for it to support, and
     a floating citation is the definition of an unsupported claim.
     """
-    citation = _validate_citation(url, quote)
+    citation = _validate_citation(url, finding)
     if not citation:
         return preview
     signal = preview.get("buying_signal")
@@ -898,7 +910,16 @@ async def generate_enrichment(
         lead_brief = {}
 
     mem = _build_memory_context(current_user, memory_context)
-    prompt = _build_prompt(lead_brief, mem)
+
+    # 010: grounded search BEFORE the enrichment call, so its result can be fenced into
+    # the prompt as evidence. Never raises and never blocks the flow — when it returns
+    # None (disabled, no key, nothing found, timeout, error) the brief degrades to
+    # exactly the 009 output: a buying signal with no source link.
+    evidence = await retrieve_signal_evidence(lead_brief)
+    evidence_block = (
+        fence_evidence(evidence["finding"], evidence.get("publisher", "")) if evidence else ""
+    )
+    prompt = _build_prompt(lead_brief, mem, evidence_block)
 
     # Budget estimate (~1-2 cents for flash/haiku)
     if not _check_budget(current_user, estimated_cents=2):
@@ -927,6 +948,18 @@ async def generate_enrichment(
         # Final deterministic mock (always works for verif + no keys)
         result = _mock_generate(lead_brief, mem)
         used_model = result["model_used"]
+
+    # 010: the citation is attached HERE, by the server, from what retrieval actually
+    # returned — never from the model's JSON, which had source_url/finding stripped on
+    # parse. That ordering is the whole defence: showing the model retrieved evidence
+    # gives it every incentive to emit a plausible URL of its own, and nothing about
+    # the string would distinguish that from a real one.
+    #
+    # It is attached to a mock result too. The mock ships a placeholder citation, and
+    # leaving that in place when a real one exists would show example.com over a brief
+    # the rep may act on.
+    if evidence:
+        attach_citation(result, evidence["source_url"], evidence["finding"])
 
     # Real provider token counts, priced from the table in config. Popped here so the
     # private carrier key can never reach /api/leads/enrich or either client — the

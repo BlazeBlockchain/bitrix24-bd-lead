@@ -412,13 +412,14 @@ function renderBuyingSignal(enrichment) {
   // Source and date are independently optional: the model is instructed to omit
   // an attribution it cannot support rather than invent one, so a summary with
   // no source is the expected honest case, not a degraded one.
-  // 010: the citation. The quote is evidence FOR the summary, so it cannot
-  // outlive the link that makes it checkable — an uncheckable quote is a
-  // fabrication surface, not evidence. The server enforces the same pairing;
-  // this is the both-sides re-check.
+  // 010: the citation. The finding is what a grounded search returned, attributed
+  // by the provider to this source — not a quotation from it. It cannot outlive
+  // the link that makes it checkable, since an unattributable claim is a
+  // fabrication surface rather than evidence. The server enforces the same
+  // pairing; this is the both-sides re-check.
   const url = httpsUrl(signal.source_url);
-  const quote = url ? briefText(signal.quote) : null;
-  if (quote) box.appendChild(makeText('blockquote', 'brief-quote', quote));
+  const finding = url ? briefText(signal.finding) : null;
+  if (finding) box.appendChild(makeText('p', 'brief-finding', `Search found: ${finding}`));
 
   const source = briefText(signal.source);
   const date = briefText(signal.date);

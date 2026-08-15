@@ -152,6 +152,71 @@ panel. The stress fixture is a 121-character hostname for that reason.
 - **The quote is a `<blockquote>` with a left rule**, not a boxed section — it is evidence for the
   summary above it, not a section of its own, and the visual break signals "somebody else's words".
 
+## P3 results — measured 2026-08-15
+
+Retrieval built as `backend/app/services/retrieval_service.py` and wired into
+`generate_enrichment` ahead of the model call. 181 backend tests pass (137 → 154 → 181), hermetic.
+
+### The probe overturned a load-bearing assumption
+
+The plan claimed the quote would be **extracted from grounding metadata, not generated**, and sold
+that as the strongest defence against a confident-but-wrong citation. Measured against the live API,
+that defence does not exist:
+
+```
+groundingSupports[].segment.text  ==  a slice of the MODEL's own answer   (verified True)
+```
+
+The API exposes **no source-page text at all**. What the metadata asserts is "the provider attributes
+this sentence to this source" — genuinely useful, but not a quotation. The field was therefore
+renamed `quote` → `finding` before it ever carried production data, the blockquote styling was
+dropped, and both renderers now prefix it `Search found:`. What it does carry is the exact evidence
+text the enrichment model was given, which is a real trust property: the rep sees the model's input.
+
+Two further findings from the same probe:
+
+- **`groundingChunks[].web.uri` is a `vertexaisearch.cloud.google.com` redirect**, not a publisher
+  URL. P2's hostname-as-link-text would have rendered every citation as
+  "vertexaisearch.cloud.google.com" — useless, and implying Google is the source. The service now
+  follows the redirect (302 → `https://en.wikipedia.org/wiki/Anthropic`) before the URL goes near the
+  brief. Only the redirect is followed; the page body is never read, so no HTML parsing, no robots
+  question, no third-party page content in the process.
+- **`groundingChunks[].web.title` is the publisher domain** (`techcrunch.com`, `anthropic.com`),
+  which is what makes the resolved link legible.
+
+### Why REST instead of the SDK
+
+The installed `google-generativeai` 0.8.6 cannot express the tool at all — a string tool raises
+*"The only string that can be passed as a tool is 'code_execution'"*, and `google_search_retrieval`
+is refused by the API for 2.5 models (*"use google_search tool instead"*). `httpx` is already a
+dependency for the CRM adapters, the response is plain JSON, and parsing `groundingMetadata`
+directly is clearer than unwrapping protobufs. **No new dependency was added.**
+
+### Hermeticity is now structural, not accidental
+
+`generate_enrichment` reaches the network, so the suite could have started making live calls the
+moment anyone ran it with a key exported — and it would have looked fine. Two guards:
+
+- an autouse `conftest` fixture disables retrieval for every test; the retrieval tests opt back in
+  and install an `httpx.MockTransport`;
+- verified by running the whole suite with `socket.connect`/`getaddrinfo` poisoned **and**
+  `GEMINI_API_KEY` set: 181 passed, no socket opened.
+
+### Mutation check
+
+Nine mutations, each reverted before the next; eight failed exactly the intended test. The ninth is
+worth recording:
+
+**"timeout no longer degrades" initially PASSED.** A timeout and a crash both return `None`, so
+asserting the return value proved nothing about which branch ran — the test passed with the timeout
+handler deleted. It now asserts the logged outcome (`RETRIEVAL: timeout`, and *not* `RETRIEVAL:
+error`), because telling a slow search from a broken one is the only way to know whether the 6s
+budget is set correctly. Re-mutated: caught.
+
+Also caught during test-writing: patching `httpx.AsyncClient` with a factory that itself calls
+`httpx.AsyncClient` recursed until the service swallowed a `RecursionError` as a generic retrieval
+failure — a green-looking test proving nothing. The real class is now captured before patching.
+
 ## Risks
 
 | Risk | Mitigation |

@@ -553,22 +553,20 @@ label {
   overflow-wrap: anywhere;
 }
 
-/* 010: the supporting sentence from the cited page. Set apart from .brief-text
-   because these are somebody else's words, not the model's — a rep skimming the
-   brief should be able to tell at a glance which claims are ours. A left rule
-   rather than a full box: it is evidence for the summary above it, not a
-   section of its own. Only ever rendered alongside a valid link, so the quote
-   is always one click from being falsified.
+/* 010: what a grounded search returned for this signal, attributed by the
+   provider to the linked source. Deliberately NOT styled as a quotation — no
+   italics, no quote rule — because it is not one: the grounding API exposes
+   spans of the model's own text, never the source page's, so no page quote
+   exists to render. It is prefixed "Search found:" for the same reason. What it
+   does carry is the exact evidence text the enrichment model was given, which
+   is why it earns a line of its own under the summary.
 
    Shared verbatim between web/src/index.css and extension/tokens.css so the two
    surfaces cannot drift. */
-.brief-quote {
+.brief-finding {
   font-size: var(--fs-sm);
-  font-style: italic;
   color: var(--muted);
   margin: 8px 0 0;
-  padding-left: 10px;
-  border-left: 2px solid var(--accent-line);
   overflow-wrap: anywhere;
 }
 

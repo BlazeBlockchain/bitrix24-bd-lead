@@ -8,6 +8,24 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta
 
+from app.config import settings
+
+
+@pytest.fixture(autouse=True)
+def no_live_retrieval(monkeypatch):
+    """010: keep the suite offline by construction rather than by luck.
+
+    generate_enrichment now runs a grounded web search before calling the model.
+    Retrieval short-circuits when GEMINI_API_KEY is unset, which is the normal state of
+    a dev checkout — but that is a coincidence of configuration, not a guarantee. Run
+    the suite in a shell that exports a real key, or inside the backend image which has
+    one, and every enrichment test would quietly start hitting the network.
+
+    Disabled for every test. The retrieval tests opt back in explicitly and install a
+    mock transport, so they exercise the real parser without opening a socket.
+    """
+    monkeypatch.setattr(settings, "RETRIEVAL_ENABLED", False)
+
 
 @pytest.fixture
 def mock_current_user():
@@ -64,14 +82,14 @@ def mock_enrichment_result():
         # 009: the four sections 008 shipped inert. Additive and optional — consumers
         # that predate this feature ignore them, and a stored enrichment without them
         # still renders, just inert.
-        # 010: source_url + quote are the retrieval-sourced citation. Only the server may
-        # set them, never the model — see _validate_citation.
+        # 010: source_url + finding are the retrieval-sourced citation. Only the server
+        # may set them, never the model — see _validate_citation.
         "buying_signal": {
             "summary": "Test Corp closed a funding round, which usually front-loads tooling decisions.",
             "source": "Example Newsroom",
             "date": "2026-08-01",
             "source_url": "https://example.com/newsroom/test-corp-series-b",
-            "quote": "Test Corp has closed a $40M Series B led by Example Ventures.",
+            "finding": "Test Corp has closed a $40M Series B led by Example Ventures.",
         },
         "contact_confidence": {
             "level": "medium",

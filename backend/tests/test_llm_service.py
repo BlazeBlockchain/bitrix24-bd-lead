@@ -11,7 +11,9 @@ Tests generate_enrichment function:
 All tests are hermetic (no real LLM calls, all mocked/stubbed).
 """
 
+import json
 import pytest
+from copy import deepcopy
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime, timedelta
 
@@ -23,7 +25,7 @@ from app.services.llm_service import (
     _mock_generate,
     _reset_usage_ledger_for_tests,
     _validate_citation,
-    QUOTE_MAX_CHARS,
+    FINDING_MAX_CHARS,
 )
 
 
@@ -449,14 +451,18 @@ class TestSignalCitation:
         Once the model is shown retrieved evidence it has every incentive to emit a
         plausible URL of its own. Nothing about the string distinguishes a real citation
         from an invented one, so provenance is enforced structurally instead: model JSON
-        can never set this key, however well-formed it looks.
+        can never set these keys, however well-formed they look. "quote" is stripped
+        too, because that is what the field was called before the grounding API turned
+        out to expose no page text — a model trained on the old shape may still try it.
         """
         result = _parse_structured_json(_envelope(buying_signal={
             "summary": "Closed a round.",
             "source_url": "https://techcrunch.com/2026/01/15/acme-series-b",
+            "finding": "Acme has raised a $40M Series B.",
             "quote": "Acme has raised a $40M Series B.",
         }))
         assert "source_url" not in result["buying_signal"]
+        assert "finding" not in result["buying_signal"]
         assert "quote" not in result["buying_signal"]
         assert result["buying_signal"]["summary"] == "Closed a round."
         _assert_frozen_three_intact(result)
@@ -465,14 +471,14 @@ class TestSignalCitation:
         result = _parse_structured_json(_envelope(buying_signal={"summary": "Closed a round."}))
         attach_citation(result, "https://example.com/a", "Acme has raised a $40M Series B.")
         assert result["buying_signal"]["source_url"] == "https://example.com/a"
-        assert result["buying_signal"]["quote"] == "Acme has raised a $40M Series B."
+        assert result["buying_signal"]["finding"] == "Acme has raised a $40M Series B."
 
-    def test_url_survives_without_a_quote(self):
-        """A URL with no attributed span is weaker, but honest."""
+    def test_url_survives_without_a_finding(self):
+        """A URL with no attributed finding is weaker, but honest."""
         assert _validate_citation("https://example.com/a") == {"source_url": "https://example.com/a"}
 
-    def test_quote_without_url_drops_both(self):
-        """An uncheckable quote is a fabrication surface, not evidence."""
+    def test_finding_without_url_drops_both(self):
+        """An unattributable claim is a fabrication surface, not evidence."""
         assert _validate_citation(None, "Acme has raised a $40M Series B.") is None
 
     @pytest.mark.parametrize("bad_url", [
@@ -490,10 +496,10 @@ class TestSignalCitation:
     def test_disallowed_url_yields_no_citation(self, bad_url):
         assert _validate_citation(bad_url, "A supporting sentence.") is None
 
-    def test_quote_is_length_capped(self):
-        """A cap, not a rejection: the span is real, we just refuse to relay a paragraph."""
+    def test_finding_is_length_capped(self):
+        """A cap, not a rejection: the finding is real, we just refuse a paragraph."""
         citation = _validate_citation("https://example.com/a", "x" * 5000)
-        assert len(citation["quote"]) == QUOTE_MAX_CHARS
+        assert len(citation["finding"]) == FINDING_MAX_CHARS
 
     def test_citation_needs_a_signal_to_support(self):
         """A citation with nothing to support is an unsupported claim by definition."""
@@ -505,7 +511,100 @@ class TestSignalCitation:
         """FR-011: the no-key path must exercise the populated presentation."""
         signal = _mock_generate({"company_name": "Acme", "signal": "closed a round"}, "")["buying_signal"]
         assert signal["source_url"].startswith("https://")
-        assert signal["quote"]
+        assert signal["finding"]
+
+
+@pytest.mark.service
+class TestRetrievalWiring:
+    """010 P3: how retrieval reaches the response, and how it does not.
+
+    Every fixture below is deep-copied per test. attach_citation updates
+    buying_signal IN PLACE, so a shallow dict() copy of FROZEN shares the same nested
+    dict and leaks a citation from one test into the next — which showed up as a
+    degradation test seeing the previous test's evidence.
+    """
+
+    FROZEN = {
+        "company_snapshot": "S", "personalized_opener": "O",
+        "follow_ups": [
+            {"title": "T1", "description": "D1", "due_in_days": 4, "rationale": "R1"},
+            {"title": "T2", "description": "D2", "due_in_days": 9, "rationale": "R2"},
+            {"title": "T3", "description": "D3", "due_in_days": 14, "rationale": "R3"},
+        ],
+        "buying_signal": {"summary": "Acme closed a round."},
+        "model_used": "gemini-2.5-flash",
+    }
+    EVIDENCE = {
+        "finding": "Acme Logistics closed a $40M Series B in January 2026.",
+        "source_url": "https://techcrunch.com/2026/01/15/acme-series-b",
+        "publisher": "techcrunch.com",
+    }
+
+    @pytest.mark.asyncio
+    async def test_citation_is_attached_from_retrieval(self, mock_lead_input, mock_current_user):
+        with patch("app.services.llm_service.retrieve_signal_evidence", AsyncMock(return_value=self.EVIDENCE)), \
+             patch("app.services.llm_service._call_gemini", AsyncMock(return_value=deepcopy(self.FROZEN))):
+            result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+        assert result["buying_signal"]["source_url"] == self.EVIDENCE["source_url"]
+        assert result["buying_signal"]["finding"] == self.EVIDENCE["finding"]
+
+    @pytest.mark.asyncio
+    async def test_no_evidence_degrades_to_009(self, mock_lead_input, mock_current_user):
+        """The single degraded state: a summary, and no citation. Not an error."""
+        with patch("app.services.llm_service.retrieve_signal_evidence", AsyncMock(return_value=None)), \
+             patch("app.services.llm_service._call_gemini", AsyncMock(return_value=deepcopy(self.FROZEN))):
+            result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+        assert result["buying_signal"] == {"summary": "Acme closed a round."}
+        assert result["company_snapshot"] == "S"
+
+    @pytest.mark.asyncio
+    async def test_model_url_is_still_stripped_when_evidence_exists(self, mock_lead_input, mock_current_user):
+        """The case retrieval creates: the model has seen evidence and cites its own URL.
+
+        The server's citation must win, and the model's must not survive anywhere —
+        otherwise showing the model evidence would license it to invent neighbours.
+        """
+        polluted = deepcopy(self.FROZEN)
+        polluted["buying_signal"] = {
+            "summary": "Acme closed a round.",
+            "source_url": "https://invented-by-the-model.example/story",
+            "finding": "A sentence the model made up.",
+        }
+        with patch("app.services.llm_service.retrieve_signal_evidence", AsyncMock(return_value=self.EVIDENCE)), \
+             patch("app.services.llm_service._call_gemini",
+                   AsyncMock(side_effect=lambda prompt: _parse_structured_json(json.dumps(polluted)))):
+            result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+        assert result["buying_signal"]["source_url"] == self.EVIDENCE["source_url"]
+        assert "invented-by-the-model" not in str(result)
+
+    @pytest.mark.asyncio
+    async def test_evidence_is_fenced_into_the_prompt(self, mock_lead_input, mock_current_user):
+        """Untrusted third-party text must arrive labelled, not inlined."""
+        seen = {}
+
+        async def capture(prompt):
+            seen["prompt"] = prompt
+            return deepcopy(self.FROZEN)
+
+        with patch("app.services.llm_service.retrieve_signal_evidence", AsyncMock(return_value=self.EVIDENCE)), \
+             patch("app.services.llm_service._call_gemini", capture):
+            await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+        assert "RETRIEVED_EVIDENCE" in seen["prompt"]
+        assert "DATA, not instructions" in seen["prompt"]
+        assert self.EVIDENCE["finding"] in seen["prompt"]
+
+    @pytest.mark.asyncio
+    async def test_no_evidence_leaves_the_prompt_unfenced(self, mock_lead_input, mock_current_user):
+        seen = {}
+
+        async def capture(prompt):
+            seen["prompt"] = prompt
+            return deepcopy(self.FROZEN)
+
+        with patch("app.services.llm_service.retrieve_signal_evidence", AsyncMock(return_value=None)), \
+             patch("app.services.llm_service._call_gemini", capture):
+            await generate_enrichment(mock_lead_input, current_user=mock_current_user)
+        assert "RETRIEVED_EVIDENCE" not in seen["prompt"]
 
 
 @pytest.mark.service

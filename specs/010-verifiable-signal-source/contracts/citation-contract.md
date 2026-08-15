@@ -20,7 +20,8 @@ See [009's contract](../../009-enrich-brief-parity/contracts/enrich-contract.md)
   "date":    "YYYY-MM-DD | null", // 009, unchanged
 
   "source_url": "string | null",  // NEW — https only; ONLY ever from retrieval metadata
-  "quote":      "string | null"   // NEW — attributed span from the source page, <= 240 chars
+  "finding":    "string | null"   // NEW — the grounded search result attributed to
+                                  //   source_url. NOT a quote from that page. <= 240 chars
 }
 ```
 
@@ -29,15 +30,23 @@ See [009's contract](../../009-enrich-brief-parity/contracts/enrich-contract.md)
 Enforced **server-side and client-side**, per the 009 both-sides principle: a stored enrichment can
 predate a server-side validator.
 
-### 1. `quote` requires `source_url`
+### 1. `finding` requires `source_url`
 
-A quote with nothing to check it against is a fabrication surface, not evidence. Quote-without-URL
-drops **both** fields. The reverse is allowed: a URL with no quote is a weaker but honest citation.
+An unattributable claim is a fabrication surface, not evidence. Finding-without-URL drops **both**
+fields. The reverse is allowed: a URL with no finding is a weaker but honest citation.
+
+**`finding` is not a quotation, and must never be presented as one.** Measured against the live API:
+`groundingSupports[].segment.text` carries spans of the **model's own generated text**, not the
+source page's — the API exposes no page text at all. What the metadata asserts is "the provider
+attributes this sentence to this source". That is still worth showing, because it is the exact
+evidence text the enrichment model was given, but rendering it in quote marks or a blockquote would
+claim something untrue. Hence the name, and hence the `Search found:` prefix in both renderers.
 
 ### 2. `source_url` never comes from model-authored JSON
 
-The model **cannot** put a URL into the response. `_validate_buying_signal` strips `source_url` and
-`quote` from whatever the LLM emits, unconditionally, and logs when it sees them. The citation is
+The model **cannot** put a URL into the response. `_validate_buying_signal` strips `source_url`,
+`finding` and the legacy `quote` from whatever the LLM emits, unconditionally, and logs when it sees
+them. The citation is
 attached afterwards, by the server, from retrieval metadata only.
 
 This is the rule that closes the hole retrieval opens. Without it, giving the model a retrieval
@@ -52,14 +61,17 @@ transit, and every credible publisher serves https.
 
 ## Presentation rules
 
-1. **Link text is the hostname**, not the raw URL. The full URL goes in `title`. This is both more
+1. **Link text is the hostname**, not the raw URL. The full URL goes in `title`. The hostname is
+   the *resolved publisher* — the grounding API returns a `vertexaisearch.cloud.google.com` redirect,
+   which the retrieval service follows before the URL is allowed near the brief. Rendering the raw
+   redirect would tell the rep nothing and imply Google is the source. This is both more
    legible and the reason a long URL cannot break the resizable panel — though
    `overflow-wrap: anywhere` on `.brief-meta-item` remains the actual guarantee and must stay.
 2. **The anchor is built with `createElement`.** `href` is assigned only after the client's own
    scheme check passes. Never a template string, never `innerHTML`.
 3. **`rel="noopener noreferrer"`, `target="_blank"`.**
-4. **The quote renders as text**, visually distinct from the summary so it reads as somebody else's
-   words rather than the model's.
+4. **The finding renders as plain text** on its own line, prefixed `Search found:` — deliberately
+   not italicised, quoted, or set in a blockquote, since it is not a quotation.
 5. **No client-side derivation.** No source inferred from a domain, no date parsed from a URL slug,
    no favicon or site name synthesised from a hostname. Unchanged from 009, and it now has more
    surface to apply to.
@@ -68,12 +80,13 @@ transit, and every credible publisher serves https.
 
 | Situation | Result |
 |---|---|
-| Retrieval finds nothing | `summary` (+ 009 `source`/`date`); no `source_url`, no `quote` |
+| Retrieval finds nothing | `summary` (+ 009 `source`/`date`); no `source_url`, no `finding` |
 | Retrieval times out | identical to above |
 | Retrieval errors | identical to above |
 | Retrieval disabled / key unset | identical to above |
 | Model emits a `source_url` | stripped; identical to above |
-| `quote` present, `source_url` invalid | both dropped; identical to above |
+| `finding` present, `source_url` invalid | both dropped; identical to above |
+| Grounding URI does not resolve to an https publisher URL | identical to above |
 | Stored pre-010 enrichment | identical to above |
 
 There is **one** degraded state and it is exactly 009's output. No partial render, no error, no
