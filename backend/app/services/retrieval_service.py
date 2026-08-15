@@ -54,6 +54,10 @@ logger = logging.getLogger(__name__)
 _ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 # Delimiters are stripped from retrieved text so a fenced block cannot close itself.
+# More than a handful of source chips stops being attribution and starts being clutter,
+# and each one costs a resolve + liveness round trip.
+MAX_SOURCES = 4
+
 EVIDENCE_FENCE_OPEN = "<<<RETRIEVED_EVIDENCE"
 EVIDENCE_FENCE_CLOSE = "RETRIEVED_EVIDENCE>>>"
 
@@ -88,8 +92,8 @@ def _company_tokens(company: str) -> list[str]:
             if w and w not in stop and len(w) > 2]
 
 
-def _best_publisher_chunk(metadata: dict[str, Any], company: str) -> Optional[dict[str, Any]]:
-    """The best chunk backing the statement, or None.
+def _cited_publisher_chunks(metadata: dict[str, Any], company: str) -> list[dict[str, Any]]:
+    """EVERY chunk backing the statement, company's own domain first.
 
     Two rules, both learned from P4.
 
@@ -98,17 +102,17 @@ def _best_publisher_chunk(metadata: dict[str, Any], company: str) -> Optional[di
        provider says supports the text. Citing an unreferenced chunk would be citing a
        page that was merely nearby.
 
-    2. Among those, prefer the company's OWN domain. A single support routinely cites
-       several chunks — the Klarna P4 lead returned indices [0,1,2,3,4], meaning the
-       sentence is a synthesis across five pages, no one of which need contain all of
-       it. Taking the first index picked ultimamarkets.com, a broker, while klarna.com
-       sat unused at index 4; the resulting citation did not carry the Form F-1 detail
-       or the filing date the finding asserted. A primary source both ranks higher for
-       the rep and is far likelier to state the specifics, because it is the company
-       announcing its own news.
+    2. Return them ALL, with the company's own domain first. A single support routinely
+       cites several chunks — the Klarna P4 lead returned indices [0,1,2,3,4], meaning
+       the sentence is a synthesis across five pages, no one of which need contain all
+       of it. Showing one link beside such a sentence asserts that page says the whole
+       sentence, which is exactly the overstatement this feature exists to avoid. The
+       honest presentation is every source the provider actually leaned on.
 
-    This narrows but does not eliminate the synthesis problem — see the known gap in
-    the 010 plan. It is a mitigation, not a proof of attribution.
+       Own-domain first because a company announcing its own news is both the better
+       source for the rep and the likeliest to carry the specifics — the P4 Klarna
+       citation lost "Form F-1" and the filing date by attributing to a broker at index
+       0 while klarna.com sat unused at index 4.
     """
     chunks = metadata.get("groundingChunks") or []
     if not isinstance(chunks, list) or not chunks:
@@ -127,11 +131,17 @@ def _best_publisher_chunk(metadata: dict[str, Any], company: str) -> Optional[di
         return None
 
     tokens = _company_tokens(company)
+    seen: set[str] = set()
+    primary: list[dict[str, Any]] = []
+    secondary: list[dict[str, Any]] = []
     for web in cited:
+        uri = web.get("uri") or ""
+        if not uri or uri in seen:
+            continue
+        seen.add(uri)
         domain = (web.get("title") or "").lower()
-        if any(t in domain for t in tokens):
-            return web
-    return cited[0]
+        (primary if any(t in domain for t in tokens) else secondary).append(web)
+    return primary + secondary
 
 
 def _best_finding(metadata: dict[str, Any], answer: str) -> Optional[str]:
@@ -328,9 +338,9 @@ async def retrieve_signal_evidence(lead_brief: dict[str, Any]) -> Optional[dict[
                 if isinstance(part, dict)
             )
 
-            web = _best_publisher_chunk(metadata, company)
+            webs = _cited_publisher_chunks(metadata, company)
             finding = _best_finding(metadata, answer)
-            if not web or not finding:
+            if not webs or not finding:
                 logger.info("RETRIEVAL: %s (query=%r)", OUTCOME_EMPTY, query)
                 return None
             # An explicit confirmation, or nothing. Not "no rejection found in the prose".
@@ -342,14 +352,31 @@ async def retrieve_signal_evidence(lead_brief: dict[str, Any]) -> Optional[dict[
                 logger.info("RETRIEVAL: %s (confirmation carried no sentence)", OUTCOME_EMPTY)
                 return None
 
-            source_url = await _resolve_publisher_url(web.get("uri") or "", client)
-            if not source_url:
+            # Resolve and liveness-check every cited source concurrently, so showing
+            # all of them costs one round trip rather than N.
+            resolved = await asyncio.gather(*[
+                _resolve_publisher_url(w.get("uri") or "", client) for w in webs[:MAX_SOURCES]
+            ])
+            tokens = _company_tokens(company)
+            sources = [
+                {"url": url, "publisher": (w.get("title") or "").strip()}
+                for w, url in zip(webs, resolved) if url
+            ]
+            if not sources:
                 logger.info("RETRIEVAL: %s (no resolvable publisher URL)", OUTCOME_EMPTY)
                 return None
 
-            publisher = (web.get("title") or "").strip()
-            logger.info("RETRIEVAL: %s (publisher=%s, query=%r)", OUTCOME_FOUND, publisher, query)
-            return {"finding": finding, "source_url": source_url, "publisher": publisher}
+            # Whether any surviving source is the company's own. When none is, the claim
+            # rests entirely on third parties, which is materially weaker and is
+            # surfaced to the rep rather than kept in the logs.
+            has_primary = any(
+                any(t in (src["publisher"] or "").lower() for t in tokens) for src in sources
+            )
+            logger.info(
+                "RETRIEVAL: %s (%d sources, primary=%s, query=%r)",
+                OUTCOME_FOUND, len(sources), has_primary, query,
+            )
+            return {"finding": finding, "sources": sources, "has_primary": has_primary}
 
     except (httpx.TimeoutException, asyncio.TimeoutError):
         # The flow must never be worse than 009 because a search was slow.

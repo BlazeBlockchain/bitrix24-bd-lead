@@ -103,39 +103,58 @@ const BuyingSignalSection: React.FC<{ enriched: EnrichedPreview }> = ({ enriched
   const date = text(signal!.date);
 
   // 010: the citation. The finding is what a grounded search returned, attributed
-  // by the provider to this source — not a quotation from it. It cannot outlive
-  // the link that makes it checkable, since an unattributable claim is a
+  // by the provider to these sources — not a quotation from any of them. It cannot
+  // outlive the links that make it checkable, since an unattributable claim is a
   // fabrication surface rather than evidence. The server enforces the same
   // pairing; this is the both-sides re-check.
-  const url = httpsUrl(signal!.source_url);
-  const finding = url ? text(signal!.finding) : null;
+  //
+  // ALL sources render, not the best one. A grounded sentence is routinely a
+  // synthesis across several pages, and a single link beside it would assert that
+  // one page says the whole thing.
+  const raw = Array.isArray(signal!.sources)
+    ? signal!.sources
+    : // Pre-multi-source 010 enrichments carried one source_url. Read rather than
+      // derive: this is the stored value, not something inferred client-side.
+      signal!.source_url
+      ? [{ url: signal!.source_url }]
+      : [];
+  const sources = raw
+    .map((s) => ({ url: httpsUrl(s?.url), publisher: text(s?.publisher) }))
+    .filter((s): s is { url: URL; publisher: string | null } => s.url !== null);
+  const finding = sources.length ? text(signal!.finding) : null;
+  const unverified = sources.length > 0 && signal!.unverified_by_company === true;
 
   return (
     <div className="brief-section">
       <p className="brief-title">Buying signal</p>
       <p className="brief-text">{summary}</p>
       {finding && <p className="brief-finding">Search found: {finding}</p>}
-      {(source || date || url) && (
+      {unverified && (
+        <p className="brief-caution" role="note">
+          No source from {'the company itself'} — this signal may not be accurate. Check before sending.
+        </p>
+      )}
+      {(source || date || sources.length > 0) && (
         <div className="brief-meta">
-          {/* When a real link exists it replaces the plain attribution rather than
-              joining it: two source chips that disagree is worse than one that is
-              checkable, and the hostname already carries the publisher identity. */}
-          {url ? (
-            <span className="brief-meta-item">
-              Source:{' '}
-              <a
-                className="brief-link"
-                href={url.href}
-                title={url.href}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {url.hostname}
-              </a>
-            </span>
-          ) : (
-            source && <span className="brief-meta-item">Source: {source}</span>
-          )}
+          {/* Real links replace the plain attribution rather than joining it: source
+              chips that disagree are worse than ones that are checkable, and each
+              hostname already carries its publisher identity. */}
+          {sources.length > 0
+            ? sources.map((s, i) => (
+                <span className="brief-meta-item" key={s.url.href}>
+                  {i === 0 && 'Source: '}
+                  <a
+                    className="brief-link"
+                    href={s.url.href}
+                    title={s.url.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {s.url.hostname}
+                  </a>
+                </span>
+              ))
+            : source && <span className="brief-meta-item">Source: {source}</span>}
           {date && <span className="brief-meta-item">{date}</span>}
         </div>
       )}

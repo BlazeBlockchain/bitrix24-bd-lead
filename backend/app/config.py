@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # App
     APP_NAME: str = "BD Lead Assistant API"
-    APP_VERSION: str = "0.2.1"
+    APP_VERSION: str = "0.2.2"
     DEBUG: bool = True
 
     # CRM auth stubs (T004; real vault + per-user in T006)

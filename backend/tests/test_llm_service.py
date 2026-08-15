@@ -457,10 +457,12 @@ class TestSignalCitation:
         """
         result = _parse_structured_json(_envelope(buying_signal={
             "summary": "Closed a round.",
+            "sources": [{"url": "https://techcrunch.com/2026/01/15/acme-series-b"}],
             "source_url": "https://techcrunch.com/2026/01/15/acme-series-b",
             "finding": "Acme has raised a $40M Series B.",
             "quote": "Acme has raised a $40M Series B.",
         }))
+        assert "sources" not in result["buying_signal"]
         assert "source_url" not in result["buying_signal"]
         assert "finding" not in result["buying_signal"]
         assert "quote" not in result["buying_signal"]
@@ -469,17 +471,17 @@ class TestSignalCitation:
 
     def test_attach_citation_is_the_sanctioned_path(self):
         result = _parse_structured_json(_envelope(buying_signal={"summary": "Closed a round."}))
-        attach_citation(result, "https://example.com/a", "Acme has raised a $40M Series B.")
-        assert result["buying_signal"]["source_url"] == "https://example.com/a"
+        attach_citation(result, [{"url": "https://example.com/a"}], "Acme has raised a $40M Series B.")
+        assert result["buying_signal"]["sources"] == [{"url": "https://example.com/a"}]
         assert result["buying_signal"]["finding"] == "Acme has raised a $40M Series B."
 
     def test_url_survives_without_a_finding(self):
         """A URL with no attributed finding is weaker, but honest."""
-        assert _validate_citation("https://example.com/a") == {"source_url": "https://example.com/a"}
+        assert _validate_citation([{"url": "https://example.com/a"}]) == {"sources": [{"url": "https://example.com/a"}]}
 
     def test_finding_without_url_drops_both(self):
         """An unattributable claim is a fabrication surface, not evidence."""
-        assert _validate_citation(None, "Acme has raised a $40M Series B.") is None
+        assert _validate_citation([], "Acme has raised a $40M Series B.") is None
 
     @pytest.mark.parametrize("bad_url", [
         "javascript:alert(1)",
@@ -494,23 +496,23 @@ class TestSignalCitation:
         12345,
     ])
     def test_disallowed_url_yields_no_citation(self, bad_url):
-        assert _validate_citation(bad_url, "A supporting sentence.") is None
+        assert _validate_citation([{"url": bad_url}], "A supporting sentence.") is None
 
     def test_finding_is_length_capped(self):
         """A cap, not a rejection: the finding is real, we just refuse a paragraph."""
-        citation = _validate_citation("https://example.com/a", "x" * 5000)
+        citation = _validate_citation([{"url": "https://example.com/a"}], "x" * 5000)
         assert len(citation["finding"]) == FINDING_MAX_CHARS
 
     def test_citation_needs_a_signal_to_support(self):
         """A citation with nothing to support is an unsupported claim by definition."""
         result = _parse_structured_json(_envelope())
-        attach_citation(result, "https://example.com/a", "A supporting sentence.")
+        attach_citation(result, [{"url": "https://example.com/a"}], "A supporting sentence.")
         assert "buying_signal" not in result
 
     def test_mock_carries_a_citation(self):
         """FR-011: the no-key path must exercise the populated presentation."""
         signal = _mock_generate({"company_name": "Acme", "signal": "closed a round"}, "")["buying_signal"]
-        assert signal["source_url"].startswith("https://")
+        assert signal["sources"][0]["url"].startswith("https://")
         assert signal["finding"]
 
 
@@ -536,8 +538,9 @@ class TestRetrievalWiring:
     }
     EVIDENCE = {
         "finding": "Acme Logistics closed a $40M Series B in January 2026.",
-        "source_url": "https://techcrunch.com/2026/01/15/acme-series-b",
-        "publisher": "techcrunch.com",
+        "sources": [{"url": "https://techcrunch.com/2026/01/15/acme-series-b",
+                     "publisher": "techcrunch.com"}],
+        "has_primary": True,
     }
 
     @pytest.mark.asyncio
@@ -545,7 +548,7 @@ class TestRetrievalWiring:
         with patch("app.services.llm_service.retrieve_signal_evidence", AsyncMock(return_value=self.EVIDENCE)), \
              patch("app.services.llm_service._call_gemini", AsyncMock(return_value=deepcopy(self.FROZEN))):
             result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
-        assert result["buying_signal"]["source_url"] == self.EVIDENCE["source_url"]
+        assert result["buying_signal"]["sources"] == self.EVIDENCE["sources"]
         assert result["buying_signal"]["finding"] == self.EVIDENCE["finding"]
 
     @pytest.mark.asyncio
@@ -574,7 +577,7 @@ class TestRetrievalWiring:
              patch("app.services.llm_service._call_gemini",
                    AsyncMock(side_effect=lambda prompt: _parse_structured_json(json.dumps(polluted)))):
             result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
-        assert result["buying_signal"]["source_url"] == self.EVIDENCE["source_url"]
+        assert result["buying_signal"]["sources"] == self.EVIDENCE["sources"]
         assert "invented-by-the-model" not in str(result)
 
     @pytest.mark.asyncio
@@ -591,7 +594,7 @@ class TestRetrievalWiring:
              patch("app.services.llm_service._call_haiku", AsyncMock(return_value=None)):
             result = await generate_enrichment(mock_lead_input, current_user=mock_current_user)
         assert result["mock"] is True
-        assert "source_url" not in result["buying_signal"]
+        assert "sources" not in result["buying_signal"]
         assert "finding" not in result["buying_signal"]
         # And the mock's own placeholder citation is gone too.
         assert "example.com" not in str(result)

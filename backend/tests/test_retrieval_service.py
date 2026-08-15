@@ -117,7 +117,7 @@ class TestRetrievalHappyPath:
         result = await retrieve_signal_evidence(LEAD)
         # The CONFIRMED: prefix is protocol for the server, not content for the rep.
         assert result["finding"] == "Acme Logistics closed a $40M Series B in January 2026."
-        assert result["publisher"] == "techcrunch.com"
+        assert result["sources"][0]["publisher"] == "techcrunch.com"
 
     @pytest.mark.asyncio
     async def test_redirect_is_resolved_not_returned_raw(self, transport):
@@ -128,8 +128,8 @@ class TestRetrievalHappyPath:
         """
         transport(_handler(_grounded_body()))
         result = await retrieve_signal_evidence(LEAD)
-        assert result["source_url"] == PUBLISHER_URL
-        assert "vertexaisearch" not in result["source_url"]
+        assert result["sources"][0]["url"] == PUBLISHER_URL
+        assert "vertexaisearch" not in result["sources"][0]["url"]
 
     @pytest.mark.asyncio
     async def test_prefers_the_companys_own_domain_among_cited_chunks(self, transport):
@@ -149,7 +149,10 @@ class TestRetrievalHappyPath:
         body["candidates"][0]["groundingMetadata"]["groundingSupports"][0]["groundingChunkIndices"] = [0, 1, 2]
         transport(_handler(body))
         result = await retrieve_signal_evidence(LEAD)
-        assert result["publisher"] == "acmelogistics.com"
+        # ALL cited sources are returned; the company's own domain leads.
+        assert [x["publisher"] for x in result["sources"]] == [
+            "acmelogistics.com", "ultimamarkets.com", "capital.com"]
+        assert result["has_primary"] is True
 
     @pytest.mark.asyncio
     async def test_falls_back_to_the_first_cited_chunk(self, transport):
@@ -160,7 +163,10 @@ class TestRetrievalHappyPath:
         ])
         body["candidates"][0]["groundingMetadata"]["groundingSupports"][0]["groundingChunkIndices"] = [0, 1]
         transport(_handler(body))
-        assert (await retrieve_signal_evidence(LEAD))["publisher"] == "techcrunch.com"
+        result = await retrieve_signal_evidence(LEAD)
+        assert [x["publisher"] for x in result["sources"]] == ["techcrunch.com", "capital.com"]
+        # No source is the company's own, so the rep gets a caution.
+        assert result["has_primary"] is False
 
     @pytest.mark.asyncio
     async def test_prefers_a_chunk_something_actually_cites(self, transport):
@@ -176,7 +182,7 @@ class TestRetrievalHappyPath:
         body["candidates"][0]["groundingMetadata"]["groundingSupports"][0]["groundingChunkIndices"] = [1]
         transport(_handler(body))
         result = await retrieve_signal_evidence(LEAD)
-        assert result["publisher"] == "techcrunch.com"
+        assert result["sources"][0]["publisher"] == "techcrunch.com"
 
 
 @pytest.mark.service

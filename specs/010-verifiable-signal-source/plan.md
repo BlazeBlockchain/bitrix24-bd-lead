@@ -294,6 +294,58 @@ with real usage data on how often the single-chunk case occurs.
 Figma citation is a South African broker's blog, which is accurate here but not what a rep would
 choose. There is no reputation ranking beyond the primary-source preference.
 
+## P5 — multi-source, caution, and the terms question (2026-08-15)
+
+Three follow-ups after P4, at the user's direction.
+
+### Every cited source is now shown
+
+P4's known gap is closed rather than mitigated. A grounded sentence attributed to
+`groundingChunkIndices [0,1,2,3,4]` now renders **five chips**, not one. Showing a single link beside
+a synthesis asserts that page says the whole sentence — the overstatement this feature exists to
+prevent, and the exact shape of the Klarna defect. Sources keep the company's-own-domain-first
+ordering, capped at 4 (`MAX_SOURCES`), each resolved and liveness-checked concurrently so N sources
+cost one round trip rather than N.
+
+`source_url` (singular) is still read by both clients for enrichments stored earlier in 010.
+
+### The rep is warned when no source is the company's own
+
+`unverified_by_company` renders an amber caution: *"No source from the company itself — this signal
+may not be accurate. Check before sending."* When every source is third-party, they may simply be
+reporting each other, which is the weakest evidence this feature can produce while still producing
+something. That was previously visible only as a list of domain names the rep had to interpret.
+
+Shown only alongside a citation — with no sources the section is already 009's honest presentation
+and needs no warning. **Its absence is not a guarantee of accuracy**, only the absence of this
+specific weakness, and the copy is worded to match.
+
+### Google's grounding terms — resolved, and the answer is uncomfortable
+
+Read directly from the Gemini API terms. Two clauses bear on what we built:
+
+> *"you will not modify, or intersperse any other content with, the Grounded Results or Search
+> Suggestions"* … *"you will only display the Grounded Results with the associated Search
+> Suggestion(s) to the end user who submitted the prompt"*
+
+Measured against those, **this implementation does not currently comply on two points**:
+
+1. **We modify the Link.** Resolving `vertexaisearch.cloud.google.com/grounding-api-redirect/…` to the
+   publisher URL replaces the Link Google returned. The product argument for it is strong and was the
+   explicit instruction: a chip reading "vertexaisearch.cloud.google.com" tells the rep nothing,
+   implies Google is the source, and hides the destination before the click — which defeats
+   checkability, the entire point of the feature. Kept, deliberately.
+2. **We do not render Search Suggestions.** `groundingMetadata.searchEntryPoint` returns HTML/CSS the
+   terms require be displayed alongside grounded results. We currently discard it.
+
+A third clause — *"you will not cache … Grounded Results"* — is arguably engaged by storing the
+citation on a persisted enrichment, though the terms do permit storage for "end-user chat history",
+which a saved lead brief plausibly is.
+
+**This needs legal sign-off before real reps see it, and it is not a decision this plan can make.**
+The compliance-shaped alternative is to render the redirect URI as-is plus the Search Suggestions
+block, at a real cost to the feature's usefulness. Recorded here rather than resolved.
+
 ## Risks
 
 | Risk | Mitigation |

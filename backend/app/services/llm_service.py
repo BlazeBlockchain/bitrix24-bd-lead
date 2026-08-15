@@ -301,9 +301,9 @@ REQUIREMENTS (strict output contract)
 4. buying_signal: your assessment of the trigger, with
    - summary (1 sentence: what the signal is and why it matters now)
    - source (where the signal came from, as a short plain-text attribution such as
-     "company blog" or "reported in the lead brief" — NEVER a URL. Do not output a
-     source_url or a quote: citations are attached by the server from what it
-     actually retrieved, and any URL you write is discarded.)
+     "company blog" or "reported in the lead brief" — NEVER a URL. Do not output
+     sources, source_url, or a quote: citations are attached by the server from what
+     it actually retrieved, and any URL you write is discarded.)
    - date (YYYY-MM-DD) — include ONLY if the lead brief states a complete,
      unambiguous date. If it gives a month with no year ("in March"), a quarter, a
      season, or a vague word ("recently", "last year"), OMIT the date key entirely.
@@ -398,9 +398,10 @@ def _validate_signal_date(value: Any) -> Optional[str]:
 def _validate_buying_signal(raw: Any) -> Optional[dict[str, Any]]:
     """summary is required; source and date drop individually when unsupportable.
 
-    010: `source_url` and `quote` are stripped here unconditionally, no matter how
-    well-formed they look. They are attached afterwards by `attach_citation` from
-    retrieval metadata, and that is the ONLY path that may set them. See the docstring
+    010: `sources`, `source_url`, `finding` and `quote` are stripped here
+    unconditionally, no matter how well-formed they look. They are attached afterwards
+    by `attach_citation` from retrieval metadata, and that is the ONLY path that may
+    set them. See the docstring
     on `_validate_citation` for why the model is not allowed to author a URL.
     """
     if not isinstance(raw, dict):
@@ -415,7 +416,7 @@ def _validate_buying_signal(raw: Any) -> Optional[dict[str, Any]]:
     date = _validate_signal_date(raw.get("date"))
     if date:
         out["date"] = date
-    for authored in ("source_url", "finding", "quote"):
+    for authored in ("sources", "source_url", "finding", "quote", "unverified_by_company"):
         if raw.get(authored) is not None:
             # Worth a log line rather than a silent drop: how often the model reaches
             # for a URL once it has been shown retrieved evidence is exactly the
@@ -433,7 +434,7 @@ def _validate_buying_signal(raw: Any) -> Optional[dict[str, Any]]:
 # like proof.
 #
 # Three structural defences, none of which rely on the model behaving:
-#   1. The model cannot author a URL. `_validate_buying_signal` strips source_url/quote
+#   1. The model cannot author a URL. `_validate_buying_signal` strips sources/finding
 #      from model JSON unconditionally; only `attach_citation` may set them.
 #   2. The `finding` is the RETRIEVAL call's grounded sentence, which the grounding
 #      metadata attributes to this specific source, and it is the same evidence text
@@ -471,37 +472,81 @@ def _validate_source_url(value: Any) -> Optional[str]:
     return text
 
 
-def _validate_citation(url: Any, finding: Any = None) -> Optional[dict[str, str]]:
-    """A validated {source_url, quote?} — or None.
+MAX_SOURCES = 4
 
-    Finding-without-URL returns None for BOTH: an unattributable claim is a
-    fabrication surface, not evidence. The reverse is fine — a URL with no finding is
-    a weaker citation, but an honest one.
-    """
-    source_url = _validate_source_url(url)
-    if not source_url:
+
+def _validate_sources(raw: Any) -> Optional[list[dict[str, str]]]:
+    """Validated [{url, publisher}] — https only, deduplicated, capped."""
+    if not isinstance(raw, list):
         return None
-    out = {"source_url": source_url}
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        url = _validate_source_url(item.get("url"))
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        entry = {"url": url}
+        publisher = _clean_str(item.get("publisher"), 120)
+        if publisher:
+            entry["publisher"] = publisher
+        out.append(entry)
+        if len(out) >= MAX_SOURCES:
+            break
+    return out or None
+
+
+def _validate_citation(sources: Any, finding: Any = None) -> Optional[dict[str, Any]]:
+    """A validated {sources, finding?} — or None.
+
+    Finding-without-sources returns None for BOTH: an unattributable claim is a
+    fabrication surface, not evidence. The reverse is fine — sources with no finding
+    are a weaker citation, but an honest one.
+    """
+    valid = _validate_sources(sources)
+    if not valid:
+        return None
+    out: dict[str, Any] = {"sources": valid}
     text = _clean_str(finding, FINDING_MAX_CHARS)
     if text:
         out["finding"] = text
     return out
 
 
-def attach_citation(preview: dict[str, Any], url: Any, finding: Any = None) -> dict[str, Any]:
+def attach_citation(
+    preview: dict[str, Any],
+    sources: Any,
+    finding: Any = None,
+    has_primary: bool = True,
+) -> dict[str, Any]:
     """Attach a retrieval-sourced citation to `buying_signal`, in place.
 
-    The only sanctioned path for setting `source_url`/`quote`. A citation with no
+    The only sanctioned path for setting `sources`/`finding`. A citation with no
     buying_signal to hang on is dropped: there would be nothing for it to support, and
     a floating citation is the definition of an unsupported claim.
+
+    ALL cited sources are attached, not the best one. A grounded sentence is routinely
+    a synthesis across several pages — P4's Klarna lead cited five — and showing one
+    link beside such a sentence asserts that page says the whole thing, which is the
+    overstatement this feature exists to avoid.
+
+    `has_primary=False` sets `unverified_by_company`, which both surfaces render as a
+    caution. When no source is the company's own, the claim rests entirely on third
+    parties who may simply be reporting each other — the weakest evidence this can
+    produce while still producing something, and the rep is told so rather than left to
+    infer it from a list of domain names.
     """
-    citation = _validate_citation(url, finding)
+    citation = _validate_citation(sources, finding)
     if not citation:
         return preview
     signal = preview.get("buying_signal")
     if not isinstance(signal, dict) or not signal.get("summary"):
         logger.info("Dropping citation: no buying_signal.summary for it to support")
         return preview
+    if not has_primary:
+        citation["unverified_by_company"] = True
     signal.update(citation)
     return preview
 
@@ -759,7 +804,7 @@ def _mock_generate(lead_brief: dict, memory_ctx: str) -> dict[str, Any]:
     # what good output looks like.
     attach_citation(
         result,
-        f"https://example.com/newsroom/{signal_type}",
+        [{"url": f"https://example.com/newsroom/{signal_type}", "publisher": "example.com"}],
         f"Example Newsroom reports that {company} {signal}.",
     )
     return result
@@ -972,10 +1017,12 @@ async def generate_enrichment(
         # authority, which is the opposite of what a citation is for.
         signal = result.get("buying_signal")
         if isinstance(signal, dict):
-            signal.pop("source_url", None)
-            signal.pop("finding", None)
+            for key in ("sources", "source_url", "finding", "unverified_by_company"):
+                signal.pop(key, None)
     elif evidence:
-        attach_citation(result, evidence["source_url"], evidence["finding"])
+        attach_citation(
+            result, evidence["sources"], evidence["finding"], evidence.get("has_primary", True)
+        )
 
     # Real provider token counts, priced from the table in config. Popped here so the
     # private carrier key can never reach /api/leads/enrich or either client — the

@@ -10,7 +10,7 @@ The three preview fields (`company_snapshot`, `personalized_opener`, `follow_ups
 009 objects (`buying_signal`, `contact_confidence`, `outreach_email`, `crm_entry`) are unchanged.
 See [009's contract](../../009-enrich-brief-parity/contracts/enrich-contract.md).
 
-## New — two optional fields inside `buying_signal`
+## New — three optional fields inside `buying_signal`
 
 ```jsonc
 "buying_signal": {
@@ -19,10 +19,18 @@ See [009's contract](../../009-enrich-brief-parity/contracts/enrich-contract.md)
                                   //   009's plain attribution when not
   "date":    "YYYY-MM-DD | null", // 009, unchanged
 
-  "source_url": "string | null",  // NEW — https only; ONLY ever from retrieval metadata
-  "finding":    "string | null"   // NEW — the grounded search result attributed to
-                                  //   source_url. NOT a quote from that page. <= 240 chars
+  "sources": [                    // NEW — EVERY cited source, company's own domain
+    { "url": "https://…",         //   first. https only; ONLY ever from retrieval
+      "publisher": "string" }     //   metadata. Max 4.
+  ],
+  "finding": "string | null",     // NEW — the grounded search result attributed to
+                                  //   `sources`. NOT a quote from any of them. <=240 chars
+  "unverified_by_company": true   // NEW — present only when NO source is the company's
+                                  //   own domain; renders as a caution to the rep
 }
+
+`source_url` (a single string) appears in enrichments stored before multi-source landed. Clients read
+it as a one-entry `sources` and must not synthesise anything else from it.
 ```
 
 ## The three rules that make this safe
@@ -30,10 +38,17 @@ See [009's contract](../../009-enrich-brief-parity/contracts/enrich-contract.md)
 Enforced **server-side and client-side**, per the 009 both-sides principle: a stored enrichment can
 predate a server-side validator.
 
-### 1. `finding` requires `source_url`
+### 1. `finding` requires at least one valid source
 
-An unattributable claim is a fabrication surface, not evidence. Finding-without-URL drops **both**
-fields. The reverse is allowed: a URL with no finding is a weaker but honest citation.
+An unattributable claim is a fabrication surface, not evidence. Finding-without-sources drops
+**both**. The reverse is allowed: sources with no finding are a weaker but honest citation.
+
+**Every cited source is shown, not the best one.** A grounded sentence is routinely a synthesis
+across several pages — P4's Klarna lead cited five, and no one of them contained the whole sentence.
+Showing a single link beside such a sentence asserts that page says all of it, which is the
+overstatement this feature exists to prevent. Sources are ordered with the company's own domain
+first, because a company announcing its own news is both the better source and the likeliest to carry
+the specifics.
 
 **`finding` is not a quotation, and must never be presented as one.** Measured against the live API:
 `groundingSupports[].segment.text` carries spans of the **model's own generated text**, not the
@@ -72,6 +87,10 @@ transit, and every credible publisher serves https.
 3. **`rel="noopener noreferrer"`, `target="_blank"`.**
 4. **The finding renders as plain text** on its own line, prefixed `Search found:` — deliberately
    not italicised, quoted, or set in a blockquote, since it is not a quotation.
+5. **`unverified_by_company` renders a caution** in amber, telling the rep the signal may not be
+   accurate and to check before sending. It is shown only alongside a citation: with no sources at
+   all the section is already the honest 009 presentation and needs no warning. Its absence is not a
+   guarantee of accuracy — only the absence of this specific weakness.
 5. **No client-side derivation.** No source inferred from a domain, no date parsed from a URL slug,
    no favicon or site name synthesised from a hostname. Unchanged from 009, and it now has more
    surface to apply to.
@@ -85,7 +104,8 @@ transit, and every credible publisher serves https.
 | Retrieval errors | identical to above |
 | Retrieval disabled / key unset | identical to above |
 | Model emits a `source_url` | stripped; identical to above |
-| `finding` present, `source_url` invalid | both dropped; identical to above |
+| `finding` present, every source invalid | both dropped; identical to above |
+| Some sources invalid, at least one valid | valid ones render; invalid ones silently omitted |
 | Grounding URI does not resolve to an https publisher URL | identical to above |
 | Stored pre-010 enrichment | identical to above |
 
@@ -109,7 +129,7 @@ There is **one** degraded state and it is exactly 009's output. No partial rende
 | Consumer | Impact |
 |---|---|
 | `backend/tests/*` | none — additive; the 137 existing assertions untouched |
-| `web/src/api/client.ts` | two additive optional fields on the `buying_signal` type |
+| `web/src/api/client.ts` | additive optional fields on the `buying_signal` type |
 | `web/src/components/Preview.tsx` | citation branch inside the existing buying-signal section |
 | `extension/sidepanel.js` | same, via `createElement`/`textContent` |
 | `/api/leads/push` + CRM adapters | **none** |

@@ -375,10 +375,10 @@ function makeInertSection(title, note) {
  * mismatch this avoids. rel="noopener noreferrer" because target="_blank"
  * otherwise hands the opened page a handle on this one.
  */
-function makeSourceLinkChip(url) {
+function makeSourceLinkChip(url, withLabel) {
   const chip = document.createElement('span');
   chip.className = 'brief-meta-item';
-  chip.appendChild(document.createTextNode('Source: '));
+  if (withLabel) chip.appendChild(document.createTextNode('Source: '));
   const link = document.createElement('a');
   link.className = 'brief-link';
   link.textContent = url.hostname;
@@ -413,24 +413,51 @@ function renderBuyingSignal(enrichment) {
   // an attribution it cannot support rather than invent one, so a summary with
   // no source is the expected honest case, not a degraded one.
   // 010: the citation. The finding is what a grounded search returned, attributed
-  // by the provider to this source — not a quotation from it. It cannot outlive
-  // the link that makes it checkable, since an unattributable claim is a
+  // by the provider to these sources — not a quotation from any of them. It cannot
+  // outlive the links that make it checkable, since an unattributable claim is a
   // fabrication surface rather than evidence. The server enforces the same
   // pairing; this is the both-sides re-check.
-  const url = httpsUrl(signal.source_url);
-  const finding = url ? briefText(signal.finding) : null;
+  //
+  // ALL sources render, not the best one. A grounded sentence is routinely a
+  // synthesis across several pages, and a single link beside it would assert that
+  // one page says the whole thing.
+  const rawSources = Array.isArray(signal.sources)
+    ? signal.sources
+    // Pre-multi-source 010 enrichments carried one source_url. Read rather than
+    // derive: this is the stored value, not something inferred client-side.
+    : (signal.source_url ? [{ url: signal.source_url }] : []);
+  const sources = [];
+  for (let i = 0; i < rawSources.length; i++) {
+    const entry = briefObject(rawSources[i]);
+    const url = entry ? httpsUrl(entry.url) : null;
+    if (url) sources.push(url);
+  }
+
+  const finding = sources.length ? briefText(signal.finding) : null;
   if (finding) box.appendChild(makeText('p', 'brief-finding', `Search found: ${finding}`));
+
+  if (sources.length && signal.unverified_by_company === true) {
+    const caution = makeText('p', 'brief-caution',
+      'No source from the company itself — this signal may not be accurate. Check before sending.');
+    caution.setAttribute('role', 'note');
+    box.appendChild(caution);
+  }
 
   const source = briefText(signal.source);
   const date = briefText(signal.date);
-  if (source || date || url) {
+  if (source || date || sources.length) {
     const meta = document.createElement('div');
     meta.className = 'brief-meta';
-    // A real link replaces the plain attribution rather than joining it: two
-    // source chips that disagree is worse than one that is checkable, and the
-    // hostname already carries the publisher identity.
-    if (url) meta.appendChild(makeSourceLinkChip(url));
-    else if (source) meta.appendChild(makeText('span', 'brief-meta-item', `Source: ${source}`));
+    // Real links replace the plain attribution rather than joining it: source chips
+    // that disagree are worse than ones that are checkable, and each hostname
+    // already carries its publisher identity.
+    if (sources.length) {
+      for (let i = 0; i < sources.length; i++) {
+        meta.appendChild(makeSourceLinkChip(sources[i], i === 0));
+      }
+    } else if (source) {
+      meta.appendChild(makeText('span', 'brief-meta-item', `Source: ${source}`));
+    }
     if (date) meta.appendChild(makeText('span', 'brief-meta-item', date));
     box.appendChild(meta);
   }

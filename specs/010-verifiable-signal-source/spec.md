@@ -94,14 +94,16 @@ happened — instead of being told the signal came from the form I filled in mys
 
 ### Functional
 
-- **FR-001**: `buying_signal` MUST gain optional `source_url` and `quote` fields. The 009 fields
-  `summary`, `source`, `date` keep their exact names, types, and meanings.
-- **FR-002**: `source_url` MUST be `https`-only. Any other scheme — including `http`, `javascript:`,
-  and `data:` — MUST be treated as absent.
-- **FR-003**: `quote` MUST NOT survive without a valid `source_url`. Quote-without-URL drops both.
-- **FR-004**: `quote` MUST be length-capped so a paragraph of third-party text cannot pass through.
-- **FR-005**: A model-authored `source_url` or `quote` in the LLM's JSON MUST be discarded. These
-  fields may only be populated from retrieval metadata, by the server, after parsing.
+- **FR-001**: `buying_signal` MUST gain optional `sources`, `finding` and `unverified_by_company`
+  fields. The 009 fields `summary`, `source`, `date` keep their exact names, types, and meanings.
+- **FR-002**: Every source URL MUST be `https`-only. Any other scheme — including `http`,
+  `javascript:`, and `data:` — MUST be treated as absent.
+- **FR-003**: `finding` MUST NOT survive without at least one valid source. Finding-without-sources
+  drops both.
+- **FR-004**: `finding` MUST be length-capped so a paragraph of third-party text cannot pass through.
+- **FR-005**: Model-authored `sources`, `source_url`, `finding`, `quote` or `unverified_by_company`
+  in the LLM's JSON MUST be discarded. These fields may only be populated from retrieval metadata,
+  by the server, after parsing.
 - **FR-006**: When retrieval returns nothing, times out, errors, or is disabled, the response MUST be
   shaped exactly as 009 — the new keys simply absent.
 - **FR-007**: Retrieval MUST be bounded by a configurable timeout, and exceeding it MUST degrade per
@@ -118,6 +120,15 @@ happened — instead of being told the signal came from the form I filled in mys
   client-side, per the 009 both-sides rule.
 - **FR-013**: Retrieval outcome (attempted / found / empty / timeout / error) MUST be logged
   server-side. It MUST NOT be surfaced on the brief.
+- **FR-014**: When a grounded statement is attributed to several sources, ALL of them MUST be shown.
+  Attributing a multi-source synthesis to one link overstates what that page says.
+- **FR-015**: Cited sources MUST be ordered with the company's own domain first, and a citation with
+  NO company-own source MUST carry a caution telling the rep the signal may not be accurate.
+- **FR-016**: A cited URL MUST be confirmed reachable and MUST NOT redirect to a different host. A
+  citation the rep cannot open, or that lands somewhere else, is not a citation.
+- **FR-017**: Retrieval MUST be framed as verifying a claim about a named entity, not as an
+  open-ended search. It MUST reject namesakes, subsidiaries, same-name entities in other
+  jurisdictions, and different events, and MUST return an explicit machine-checkable verdict.
 
 ### Non-Functional
 
@@ -143,7 +154,9 @@ happened — instead of being told the signal came from the form I filled in mys
   company, **every** citation is both real and supportive of its claim. One real-but-unsupportive
   citation is a FAIL.
 - **SC-003**: With retrieval forced to return nothing, the brief is byte-identical to 009 output.
-- **SC-004**: A model-authored `source_url` never reaches the client, proven by test.
+- **SC-004**: A model-authored source never reaches the client, proven by test.
+- **SC-008**: A multi-source synthesis shows every source; a citation with no company-own source
+  shows a caution. Both proven by test and by the browser harness on both surfaces.
 - **SC-005**: No non-`https` scheme reaches an `href`, proven by test on both sides.
 - **SC-006**: Latency and cost delta are measured and recorded.
 - **SC-007**: The panel does not scroll horizontally at 320/400/500/720 with a long real URL.
@@ -165,9 +178,18 @@ happened — instead of being told the signal came from the form I filled in mys
 - Grounding is free under 1,500 requests/day, then $35/1,000 grounded prompts (≈3.5¢ per enrichment,
   roughly 4× today's total cost). Verified 2026-08-15 on ai.google.dev/gemini-api/docs/pricing; not
   fetched at runtime.
-- The supporting quote is taken from grounding metadata's attributed text span, not written by the
-  model — so the model cannot mis-quote, because it never writes the quote.
-- Absence of a citation is a legible signal on its own. No "we could not verify this" copy.
+- ~~The supporting quote is taken from grounding metadata's attributed text span~~ — **disproved in
+  P3.** `groundingSupports[].segment.text` is a span of the MODEL's own answer, and the API exposes
+  no source-page text. The field is `finding`: the grounded, provider-attributed sentence, which is
+  also the exact evidence the enrichment model receives. It is never presented as a quotation.
+- Absence of a citation is a legible signal on its own. No "we could not verify this" copy. The one
+  exception, added after P4: when sources exist but none is the company's own, a caution IS shown —
+  that is a specific, actionable weakness rather than the generic absence of evidence.
+
+- **Google's Grounding with Google Search terms are not fully met by this implementation.** See the
+  compliance note in the plan. Resolving the redirect URI to the publisher and not rendering the
+  returned Search Suggestions are both deliberate product choices that need legal sign-off before
+  this is exposed to real reps.
 
 ## Out of Scope
 

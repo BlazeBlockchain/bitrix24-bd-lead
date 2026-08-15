@@ -185,8 +185,12 @@ export interface EnrichedPreview {
     // `finding` is the grounded search result attributed to source_url, NOT a quote
     // from that page — the API exposes no page text. It never outlives the link that
     // makes it checkable.
-    source_url?: string;
+    sources?: Array<{ url: string; publisher?: string }>;
     finding?: string;
+    /** No source is the company's own domain — the claim rests on third parties only. */
+    unverified_by_company?: boolean;
+    /** Pre-multi-source 010 enrichments. Read as a single-entry `sources`. */
+    source_url?: string;
   };
   contact_confidence?: {
     level: ConfidenceLevel;

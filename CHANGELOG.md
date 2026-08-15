@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-08-15
+
+Feature 010 — a verifiable source for the buying signal. 009 made the buying-signal section real but
+left `source` reading "reported in the lead brief" on 5 of 5 real leads: honest, and completely
+uninformative, because it told the rep what they had typed. This adds live retrieval so the signal
+carries links a rep can open.
+
+Retrieval **relocates** the fabrication risk rather than removing it — the model can now cite a real
+page that does not say what the brief claims, which is worse than no citation because the link looks
+like proof. Most of the work below is defence against that, and every defence was added because live
+testing produced the corresponding failure.
+
+### Added
+- `buying_signal.sources[]` — every source the grounded search actually leaned on, company's own
+  domain first, `https` only, max 4. All of them render on both surfaces.
+- `buying_signal.finding` — the grounded sentence attributed to those sources, and the same evidence
+  text the enrichment model receives. Rendered as `Search found:`, never as a quotation: the API
+  exposes spans of the model's own answer, not page text, so no page quote exists.
+- `buying_signal.unverified_by_company` — an amber caution when no source is the company's own. Such
+  a claim rests entirely on third parties who may be reporting each other.
+- `backend/app/services/retrieval_service.py` — grounded Google Search as a pre-call, via REST on the
+  existing `httpx` dependency. No new dependency.
+- `RETRIEVAL_ENABLED`, `RETRIEVAL_TIMEOUT_SECONDS` (6s), and grounding list price in config.
+
+### Changed
+- Retrieval **verifies a claim about a named entity** rather than searching for news. Namesakes,
+  subsidiaries, same-name entities in other jurisdictions and different events are mandatory
+  rejections, and the verdict is a machine-checked `CONFIRMED:` prefix.
+- Cited URLs are resolved from Google's redirect to the real publisher, then confirmed reachable and
+  not bouncing off-host, so the link text is a publisher the rep recognises and the page opens.
+- Retrieved text is fenced as untrusted input, placed last, delimiter-stripped, and scoped to the
+  buying signal alone. The retrieval query carries company and signal only — no skill methodology.
+- `max_output_tokens` 4096 → 8192. Evidence in the prompt lengthened responses past the old cap.
+- A mock brief carries no citation at all.
+- Backend suite 137 → 192; hermetic offline, verified with sockets poisoned and an API key set.
+
+### Fixed
+- A false signal ("Notion is filing for bankruptcy") cited a real federal court record for **"Get
+  Notion, LLC"**, a different company — corroborating a false premise with official-looking
+  evidence. Fixed by the verification framing above.
+- Evidence in the prompt truncated the JSON mid-string, silently collapsing 3 of 7 leads to the mock
+  — one of which paired a real court-records link with generic mock filler.
+- A true Figma claim cited a URL that redirected to a broker's homepage with no mention of Figma.
+- A Klarna citation asserted "Form F-1 … March 14, 2025" against a page carrying neither: the
+  sentence was a synthesis across five sources and was attributed to one of them.
+
+### Known
+- **Google's Grounding with Google Search terms are not fully met.** Resolving the redirect URI to the
+  publisher modifies the returned Link, and the required Search Suggestions are not rendered. Both
+  are deliberate product choices and need legal sign-off before real reps use this. See
+  `specs/010-verifiable-signal-source/plan.md`.
+- Source quality is uncontrolled where the company has no own-domain page in the results.
+- Enrichment latency is now ~18s mean, ~23s max.
+
+
 ## [0.2.1] - 2026-08-15
 
 Feature 009 — enrich/design parity. The four brief sections that 0.2.0 shipped inert now carry real

@@ -88,7 +88,8 @@ def mock_enrichment_result():
             "summary": "Test Corp closed a funding round, which usually front-loads tooling decisions.",
             "source": "Example Newsroom",
             "date": "2026-08-01",
-            "source_url": "https://example.com/newsroom/test-corp-series-b",
+            "sources": [{"url": "https://example.com/newsroom/test-corp-series-b",
+                         "publisher": "example.com"}],
             "finding": "Test Corp has closed a $40M Series B led by Example Ventures.",
         },
         "contact_confidence": {

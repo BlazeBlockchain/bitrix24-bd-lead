@@ -474,6 +474,18 @@ label {
    than anywhere else on the brief: a long real URL in the title attribute is
    fine, but the visible hostname still has to break rather than push the
    resizable panel into horizontal scroll. */
+/* 010: shown when no cited source is the company's own domain. The claim then rests
+   entirely on third parties who may simply be reporting each other, which is the
+   weakest evidence this feature can produce while still producing something. Amber
+   rather than red: it is a "check this" not an "error", and the brief is still usable.
+   Absence of the note is not a guarantee, only the absence of this specific weakness. */
+.brief-caution {
+  font-size: var(--fs-sm);
+  color: #f5b544;
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .brief-link {
   color: var(--accent);
   text-decoration: none;
