@@ -59,7 +59,12 @@ services:
       # container and the shared reverse proxy already talk to it. Dropping the
       # 127.0.0.1 prefix puts an internet-facing FastAPI on port 8000, bypassing
       # both TLS and the proxy.
-      - "127.0.0.1:8000:8000"
+      #
+      # The host port is a variable because a shared box already has something on
+      # 8000. Compose cannot remove an inherited `ports` entry on the server's
+      # compose v2.18 (`!override` needs v2.24+), so a deployment moves the binding
+      # rather than dropping it — see BACKEND_PORT in .env.staging.example.
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
