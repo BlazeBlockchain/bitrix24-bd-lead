@@ -6,13 +6,13 @@ VERSION := $(shell cat VERSION)
 # Deployment configuration (overridable on the command line, e.g.
 # `make deploy-staging DEPLOY_HOST=1.2.3.4`).
 #
-# DEPLOY_HOST matches vanguard-game and is a bare hostname, so it resolves only
-# where an ssh config entry or /etc/hosts line defines it. If ssh reports
-# "Could not resolve hostname", that is the missing piece — not a dead server.
+# DEPLOY_HOST is the VPS IP. vanguard-game uses the bare hostname `vmi1325117`, which
+# resolves only where an ssh config entry defines it — it does not resolve from every
+# machine, so the IP is used here instead.
 DEPLOY_USER   ?= digaut
-DEPLOY_HOST   ?= vmi1325117
-DEPLOY_PATH   ?= ~/docker/bitrix24-bd-lead
-STAGING_PATH  ?= ~/docker/bitrix24-bd-lead-staging
+DEPLOY_HOST   ?= 95.111.225.43
+DEPLOY_PATH   ?= /home/digaut/docker/bitrix24-bd-lead
+STAGING_PATH  ?= /home/digaut/docker/bitrix24-bd-lead-staging
 
 help:
 	@echo "BD Lead Makefile"
@@ -129,37 +129,46 @@ clean:
 
 # === Deploy ===
 #
-# These pull on the server rather than pushing the working tree. The previous
-# rsync form shipped whatever happened to be on the operator's disk, including
-# uncommitted edits, so the deployed artifact had no commit to point at and could
-# not be reproduced. Pulling a named branch matches vanguard-game and means the
-# running demo is always exactly some commit on origin.
+# The deploy PUSHES a committed branch to a git repo on the server, then rebuilds
+# there. It does not pull from GitHub: the VPS has no credentials for this repo and
+# adding a deploy key needs GitHub admin rights we do not have. Pushing keeps the
+# property that actually mattered when we dropped rsync — the server runs a commit,
+# never the operator's uncommitted working tree — without putting any credential on
+# a shared host.
 #
-# Prerequisites on the server, none of which these targets create:
-#   - the repo cloned at $(DEPLOY_PATH) with read access to origin (GitHub)
+# The server repo is configured `receive.denyCurrentBranch=updateInstead`, so a push
+# to the checked-out branch updates its working tree in place. That refuses the push
+# if the server tree is dirty, which is the desired safety: nothing should be editing
+# files there, and if something is, the deploy should stop rather than clobber it.
+#
+# Prerequisites on the server, none of which these targets create — see docs/DEPLOY.md:
+#   - a git repo at $(STAGING_PATH) with updateInstead set and the branch checked out
 #   - .env.staging / .env present there (gitignored, never transferred — see
-#     .env.staging.example for what must be in it)
+#     .env.staging.example for everything that must be in it)
 #   - the external `bbspace_net` docker network
 #   - a location block in the shared nginx stack routing to the web container
-# See docs/DEPLOY.md.
 
-DEPLOY_BRANCH ?= ai-bd-assistant
+# The paths above must stay ABSOLUTE: they are interpolated into ssh:// URLs below,
+# and a `~` in an ssh:// URL is not expanded — it is sent as a literal path component.
+DEPLOY_BRANCH   ?= ai-bd-assistant
+STAGING_REMOTE  ?= ssh://$(DEPLOY_USER)@$(DEPLOY_HOST)$(STAGING_PATH)
+PROD_REMOTE     ?= ssh://$(DEPLOY_USER)@$(DEPLOY_HOST)$(DEPLOY_PATH)
 
 deploy-staging:
 	@echo "Deploying $(DEPLOY_BRANCH) to staging ($(DEPLOY_USER)@$(DEPLOY_HOST):$(STAGING_PATH))..."
+	@git push $(STAGING_REMOTE) $(DEPLOY_BRANCH)
 	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "\
 	cd $(STAGING_PATH) && \
-	git fetch origin && git checkout $(DEPLOY_BRANCH) && git pull origin $(DEPLOY_BRANCH) && \
 	docker compose --env-file .env.staging \
 	  -f docker-compose.yml -f docker-compose.staging.yml -p bdlead-staging \
 	  up --build -d --remove-orphans"
-	@echo "Staging deploy complete."
+	@echo "Staging deploy complete: https://bb.bbross.net/bd-lead-staging/"
 
 deploy-prod:
 	@echo "Deploying $(DEPLOY_BRANCH) to production ($(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOY_PATH))..."
+	@git push $(PROD_REMOTE) $(DEPLOY_BRANCH)
 	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "\
 	cd $(DEPLOY_PATH) && \
-	git fetch origin && git checkout $(DEPLOY_BRANCH) && git pull origin $(DEPLOY_BRANCH) && \
 	docker compose --env-file .env \
 	  -p bdlead-prod up --build -d --remove-orphans"
 	@echo "Production deploy complete."

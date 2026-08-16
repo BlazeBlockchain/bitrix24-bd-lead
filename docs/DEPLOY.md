@@ -33,6 +33,12 @@ That single value drives two things:
 1. Vite emits asset URLs under `/bd-lead-staging/`.
 2. `web/src/api/client.ts` derives `API_BASE` from `import.meta.env.BASE_URL`, so the
    browser calls `/bd-lead-staging/api/…` rather than `/api/…`.
+3. `App.tsx` passes the same `BASE_URL` to `<BrowserRouter basename=…>`. Without it
+   every route falls through to the catch-all and the whole app renders "Page not
+   found" behind a working nav bar — sign-in included, since `/login` 404s the same
+   way. Note this failure is invisible to `curl`: nginx correctly returns 200 with
+   `index.html` for any deep URL, and the router rejects the path afterwards, in the
+   browser. **Only a rendered check catches it.**
 
 Both then arrive at the shared proxy under the same prefix, the proxy strips it, and the
 container sees `/` and `/api/` — which its own `web/nginx.conf` already handles. The
@@ -67,26 +73,51 @@ location /bd-lead-staging/ {
 `bdlead-staging-web` is the `container_name` from `docker-compose.staging.yml`. The proxy
 resolves it over `bbspace_net`, so both stacks must be attached to that network.
 
+## How the deploy moves code
+
+The deploy **pushes** a committed branch to a git repo on the server and rebuilds
+there. It does not pull from GitHub, because the VPS has no credentials for this repo
+and creating a deploy key needs GitHub admin rights that were not available.
+
+Pushing preserves the property that mattered when rsync was dropped — the server runs
+a **commit**, never the operator's uncommitted working tree — while putting no
+credential on a shared host at all.
+
+The server repo sets `receive.denyCurrentBranch=updateInstead`, so pushing to the
+checked-out branch updates its working tree in place. That refuses the push if the
+server tree is dirty, which is the behaviour you want: nothing should be editing files
+there, and if something is, the deploy should stop rather than clobber it.
+
+`STAGING_PATH` / `DEPLOY_PATH` must stay **absolute** — they are interpolated into
+`ssh://` URLs, and `~` in an `ssh://` URL is sent as a literal path component rather
+than expanded.
+
 ## First deploy
 
-Nothing below is created by `make deploy-staging` — it only pulls and rebuilds.
+Nothing below is created by `make deploy-staging` — it only pushes and rebuilds.
 
 ```bash
-# 1. On the server: clone the repo
-git clone git@github.com:BlazeBlockchain/bitrix24-bd-lead.git \
-  ~/docker/bitrix24-bd-lead-staging
-cd ~/docker/bitrix24-bd-lead-staging
-git checkout ai-bd-assistant
+# 1. On the server: create the push target
+mkdir -p /home/digaut/docker/bitrix24-bd-lead-staging
+cd /home/digaut/docker/bitrix24-bd-lead-staging
+git init
+git config receive.denyCurrentBranch updateInstead
 
-# 2. Create .env.staging from the template and fill it in.
-#    It is gitignored and NEVER transferred by any deploy target.
-cp .env.staging.example .env.staging
+# 2. From your machine: push the branch, then check it out on the server.
+#    The checkout is needed ONCE — the first push lands on an unborn HEAD and so
+#    creates the ref without updating the working tree.
+git push ssh://digaut@95.111.225.43/home/digaut/docker/bitrix24-bd-lead-staging ai-bd-assistant
+ssh digaut@95.111.225.43 "cd /home/digaut/docker/bitrix24-bd-lead-staging && git checkout ai-bd-assistant"
+
+# 3. On the server: create .env.staging and fill it in. It is gitignored and is
+#    NEVER transferred by any deploy target, so it must exist before the first up.
+cp .env.staging.example .env.staging && chmod 600 .env.staging
 $EDITOR .env.staging          # see the checklist below
 
-# 3. Confirm the shared network exists (it should already)
+# 4. Confirm the shared network exists (it should already)
 docker network inspect bbspace_net >/dev/null || docker network create bbspace_net
 
-# 4. Bring it up
+# 5. Bring it up
 docker compose --env-file .env.staging \
   -f docker-compose.yml -f docker-compose.staging.yml -p bdlead-staging \
   up --build -d --remove-orphans
@@ -94,8 +125,21 @@ docker compose --env-file .env.staging \
 
 Then add the nginx block above and reload the proxy.
 
-Subsequent deploys are just `make deploy-staging` from a machine that can resolve the
-host.
+Subsequent deploys are just `make deploy-staging`.
+
+### Host ports must be free
+
+The staging stack publishes its ports on `127.0.0.1` only, but they must still be
+unused on the host or the deploy fails outright on a collision — a shared server is
+already running other projects. `BACKEND_PORT` and `WEB_PORT` in `.env.staging` exist
+for this; staging currently uses **8010** and **8090** because 8000 and 8080 were
+taken.
+
+The bindings cannot simply be removed for a deployment: dropping an inherited `ports`
+entry needs compose v2.24's `!override`, and the server runs **v2.18.1**. Moving the
+binding is what that version can express. Nothing is exposed either way — the demo is
+served through the shared nginx stack over `bbspace_net`, and these ports exist only
+for curling the services from the host shell.
 
 ### `--env-file` is not optional
 
@@ -115,6 +159,8 @@ the Google sign-in button does nothing with no error. `make deploy-staging` pass
 | `JWT_SECRET` | Left at the dev default → anyone can forge a token for this instance. |
 | `ENCRYPTION_KEK` | Empty → falls back to a hardcoded dev key in `token_vault`. Survivable only while no real CRM tokens are stored. |
 | `POSTGRES_PASSWORD` | Must match the one embedded in `DATABASE_URL` in the same file. |
+| `CORS_ORIGINS` | Needed **only by the extension**, which calls the API from `chrome-extension://<id>` — a cross origin. An unset value is not permissive: `main.py` falls back to `["http://localhost:5173"]`, so every extension request is blocked by the browser before it reaches the backend. The web app is same-origin behind nginx and needs nothing here. |
+| `BACKEND_PORT` / `WEB_PORT` | Must be free on the host, or the deploy fails on a port collision. |
 
 `ANTHROPIC_API_KEY` is empty in practice, so the real fallback chain is **Gemini → mock**,
 with no Haiku step. Both providers log why they were skipped — read the logs rather than
