@@ -31,6 +31,32 @@ from app.api.connections import router as connections_router
 from app.api.memory import router as memory_router
 from app.api.usage import router as usage_router
 
+# Give the root logger a handler. Nothing else does: uvicorn configures only its own
+# `uvicorn*` loggers, so without this the root logger sits at WARNING with no handler
+# and every `logger.info` in app code is discarded.
+#
+# That is not merely "no logs". Python's lastResort handler still prints WARNING and
+# above to stderr, so the failures shout while the successes stay silent — which is
+# exactly backwards for RETRIEVAL diagnostics, where the four outcomes you need to tell
+# apart (found / empty / disabled / no_key) are all logged at INFO. Without this line,
+# a brief that lost its citation to blocked egress and a brief that correctly found
+# nothing produce identical logs. See docs/DEPLOY.md.
+#
+# basicConfig is a no-op when the root logger already has handlers, so this still
+# defers to a `--log-config` passed to uvicorn.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
+# `echo=settings.DEBUG` in database.py makes SQLAlchemy attach its OWN handler to
+# sqlalchemy.engine, which still propagates — so once root has a handler too, every
+# SQL statement is logged twice. Only mute propagation when echo is actually on:
+# with echo off that logger has no handler of its own, and cutting propagation would
+# silently swallow SQLAlchemy's warnings.
+if settings.DEBUG:
+    logging.getLogger("sqlalchemy.engine").propagate = False
+
 logger = logging.getLogger(__name__)
 
 # ─── T005: Basic auth/JWT stub ───────────────────────────────────────────────
