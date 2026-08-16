@@ -35,6 +35,18 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60  # short-lived tokens, refresh via re-auth
     DEMO_AUTH_TOKEN: str = "demo-stub-jwt"  # kept for backward compat during transition
 
+    # Sign-in allowlist. Comma-separated; each entry is either a full address
+    # ("rep@example.com") or a domain ("@example.com"). Matching is case-insensitive.
+    #
+    # EMPTY MEANS EVERY GOOGLE ACCOUNT MAY SIGN IN. That is the right default for local
+    # dev and it is what every existing test assumes, but it is the wrong default for
+    # anything reachable from the internet: the app's cost guard is then the only thing
+    # between a stranger and the Gemini bill. Set it on any deployed environment.
+    #
+    # Enforced in app/api/auth.py::google_auth, before the user row is created, so a
+    # rejected address leaves no trace in the users table.
+    AUTH_EMAIL_ALLOWLIST: str = ""
+
     # LLM proxy (T007): Gemini 2.5 Flash primary + Haiku fallback. Keys server-only.
     # Add to .env for real calls; if empty/DEBUG -> internal mock used for verif + demo.
     GEMINI_API_KEY: str = ""

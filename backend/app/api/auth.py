@@ -31,7 +31,34 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 security = HTTPBearer(auto_error=False)
 
-__all__ = ["router", "get_current_user_api", "create_access_token"]
+__all__ = ["router", "get_current_user_api", "create_access_token", "is_email_allowed"]
+
+
+def is_email_allowed(email: str) -> bool:
+    """Whether `email` may sign in, per settings.AUTH_EMAIL_ALLOWLIST.
+
+    An empty allowlist admits everyone — see the setting's docstring for why that
+    default is only safe locally. Entries are either full addresses or "@domain"
+    suffixes; matching is case-insensitive on both sides.
+    """
+    raw = settings.AUTH_EMAIL_ALLOWLIST.strip()
+    if not raw:
+        return True
+
+    if not email:
+        return False
+
+    candidate = email.strip().lower()
+    for entry in raw.split(","):
+        rule = entry.strip().lower()
+        if not rule:
+            continue
+        if rule.startswith("@"):
+            if candidate.endswith(rule):
+                return True
+        elif candidate == rule:
+            return True
+    return False
 
 
 def create_access_token(user_id: str, email: str, display_name: str) -> str:
@@ -173,6 +200,26 @@ async def google_auth(
     except ValueError as e:
         logger.warning(f"Google token verification failed: {e}")
         raise HTTPException(status_code=401, detail=f"Invalid Google ID token: {e}")
+
+    # Allowlist gate. Deliberately before any DB write: a rejected address must not
+    # create a user row. Only consulted when an allowlist is configured, so local dev
+    # and the existing tests are unaffected.
+    if settings.AUTH_EMAIL_ALLOWLIST.strip():
+        # A domain rule is only as trustworthy as the claim it matches on, so an
+        # unverified address cannot satisfy the allowlist even if it spells the
+        # domain correctly.
+        if not id_info.get("email_verified", False):
+            logger.warning("Sign-in refused: Google reports the address as unverified")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This Google account's email address is not verified.",
+            )
+        if not is_email_allowed(email):
+            logger.warning(f"Sign-in refused for {email!r}: not on the allowlist")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account is not authorised for this deployment.",
+            )
 
     # Look up existing user by google_sub, fall back to email
     try:
