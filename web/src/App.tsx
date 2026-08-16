@@ -127,8 +127,13 @@ function App() {
     return null; // prevent flash of login page
   }
 
+  // basename must track Vite's base or every route 404s when the app is served from
+  // a subpath: the browser's URL carries the prefix while the routes below are
+  // declared without it, so nothing matches and everything falls through to the
+  // catch-all — including /login, which makes sign-in itself unreachable.
+  // BASE_URL is '/' in local dev, so this is a no-op there.
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <div className="app-shell">
         <Sidebar />
         <div className="app-main">
