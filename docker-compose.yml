@@ -32,6 +32,13 @@ services:
       HUBSPOT_ACCESS_TOKEN: ${HUBSPOT_ACCESS_TOKEN:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-in-prod}
+      # Empty = any Google account may sign in. Fine locally, wrong anywhere reachable.
+      AUTH_EMAIL_ALLOWLIST: ${AUTH_EMAIL_ALLOWLIST:-}
+      ENCRYPTION_KEK: ${ENCRYPTION_KEK:-}
+      # 010 kill switch. Setting RETRIEVAL_ENABLED=false degrades every brief to the
+      # 009 presentation (no source link) rather than erroring — see config.py.
+      RETRIEVAL_ENABLED: ${RETRIEVAL_ENABLED:-true}
+      RETRIEVAL_TIMEOUT_SECONDS: ${RETRIEVAL_TIMEOUT_SECONDS:-6.0}
       CORS_ORIGINS: ${CORS_ORIGINS:-}  # comma-separated, or empty for same-origin (nginx proxy)
       # LLM proxy: Gemini primary, Claude Haiku fallback, deterministic mock if both are empty.
       # Without these the backend ALWAYS returns mock-llm output, however the keys are set in .env.
@@ -46,7 +53,13 @@ services:
     networks:
       - bbspace_net
     ports:
-      - "8000:8000"
+      # Loopback-bound on purpose. Local dev still reaches http://localhost:8000
+      # unchanged, but on a shared host this port is NOT published to the internet:
+      # the API is only otherwise reachable over bbspace_net, which is how the web
+      # container and the shared reverse proxy already talk to it. Dropping the
+      # 127.0.0.1 prefix puts an internet-facing FastAPI on port 8000, bypassing
+      # both TLS and the proxy.
+      - "127.0.0.1:8000:8000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
@@ -62,7 +75,9 @@ services:
         VITE_BASE: "/"
         VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
-      - "${WEB_PORT:-8080}:80"
+      # Loopback-bound for the same reason as the backend above. The deployed demo is
+      # served through the shared nginx stack over bbspace_net, never off this port.
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
     networks:
       - bbspace_net
     depends_on:

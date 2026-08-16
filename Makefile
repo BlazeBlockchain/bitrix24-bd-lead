@@ -3,10 +3,16 @@
 # Read the current version from VERSION file
 VERSION := $(shell cat VERSION)
 
-# Deployment configuration (overridable)
-DEPLOY_USER ?= root
-DEPLOY_HOST ?= your-vps-ip
-DEPLOY_PATH ?= /opt/bdlead
+# Deployment configuration (overridable on the command line, e.g.
+# `make deploy-staging DEPLOY_HOST=1.2.3.4`).
+#
+# DEPLOY_HOST matches vanguard-game and is a bare hostname, so it resolves only
+# where an ssh config entry or /etc/hosts line defines it. If ssh reports
+# "Could not resolve hostname", that is the missing piece — not a dead server.
+DEPLOY_USER   ?= digaut
+DEPLOY_HOST   ?= vmi1325117
+DEPLOY_PATH   ?= ~/docker/bitrix24-bd-lead
+STAGING_PATH  ?= ~/docker/bitrix24-bd-lead-staging
 
 help:
 	@echo "BD Lead Makefile"
@@ -122,19 +128,40 @@ clean:
 	docker compose -p bdlead-dev down -v
 
 # === Deploy ===
+#
+# These pull on the server rather than pushing the working tree. The previous
+# rsync form shipped whatever happened to be on the operator's disk, including
+# uncommitted edits, so the deployed artifact had no commit to point at and could
+# not be reproduced. Pulling a named branch matches vanguard-game and means the
+# running demo is always exactly some commit on origin.
+#
+# Prerequisites on the server, none of which these targets create:
+#   - the repo cloned at $(DEPLOY_PATH) with read access to origin (GitHub)
+#   - .env.staging / .env present there (gitignored, never transferred — see
+#     .env.staging.example for what must be in it)
+#   - the external `bbspace_net` docker network
+#   - a location block in the shared nginx stack routing to the web container
+# See docs/DEPLOY.md.
+
+DEPLOY_BRANCH ?= ai-bd-assistant
 
 deploy-staging:
-	@echo "Deploying to staging ($(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOY_PATH))..."
-	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "mkdir -p $(DEPLOY_PATH)"
-	@rsync -az --delete --exclude='.env*' --exclude='node_modules' --exclude='__pycache__' --exclude='.git' ./ $(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOY_PATH)/
-	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "cd $(DEPLOY_PATH) && docker compose -f docker-compose.yml -f docker-compose.staging.yml -p bdlead-staging pull && docker compose -f docker-compose.yml -f docker-compose.staging.yml -p bdlead-staging up --build -d --remove-orphans"
+	@echo "Deploying $(DEPLOY_BRANCH) to staging ($(DEPLOY_USER)@$(DEPLOY_HOST):$(STAGING_PATH))..."
+	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "\
+	cd $(STAGING_PATH) && \
+	git fetch origin && git checkout $(DEPLOY_BRANCH) && git pull origin $(DEPLOY_BRANCH) && \
+	docker compose --env-file .env.staging \
+	  -f docker-compose.yml -f docker-compose.staging.yml -p bdlead-staging \
+	  up --build -d --remove-orphans"
 	@echo "Staging deploy complete."
 
 deploy-prod:
-	@echo "Deploying to production ($(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOY_PATH))..."
-	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "mkdir -p $(DEPLOY_PATH)"
-	@rsync -az --delete --exclude='.env*' --exclude='node_modules' --exclude='__pycache__' --exclude='.git' ./ $(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOY_PATH)/
-	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "cd $(DEPLOY_PATH) && docker compose -p bdlead-prod pull && docker compose -p bdlead-prod up --build -d --remove-orphans"
+	@echo "Deploying $(DEPLOY_BRANCH) to production ($(DEPLOY_USER)@$(DEPLOY_HOST):$(DEPLOY_PATH))..."
+	@ssh $(DEPLOY_USER)@$(DEPLOY_HOST) "\
+	cd $(DEPLOY_PATH) && \
+	git fetch origin && git checkout $(DEPLOY_BRANCH) && git pull origin $(DEPLOY_BRANCH) && \
+	docker compose --env-file .env \
+	  -p bdlead-prod up --build -d --remove-orphans"
 	@echo "Production deploy complete."
 
 .DEFAULT_GOAL := help
