@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BD Lead AI",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Paste a signal. Get AI-enriched preview + 3 perfect follow-up tasks. Push to Bitrix24 or HubSpot in seconds.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxNYd7PFeAHvrhQQ3VWlNfA8oDOGt8YLXUja8MfhIc3o8ozYvhG75DzB0ellZUkI2EWLnyDfI89rtQByifHa0JV/f/mR1VUliWCL3Tml6slmcMzBA5NehmRwK7lQKm10S3nrAWA6WoHTfpcdQr+1uHgvNl6RRalY0ip3PODHHGmKlcFbJa5tMKkgSjsMRdZbocQLjs1Per3e6rPIj7B8WjStAQgA5MI2TUrRvolSwi3RkJYgGWhWbec/pkfOPmzVcQwDv8n0D7Kpka+b983rbV1+ug6PSKeKZ3+J+rc9HtE4UGwYFZMV8+gm6BMvuZPfxWK/Mw30r0IENGjCOgrhZRQIDAQAB",
   "permissions": [

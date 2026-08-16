@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-08-16
+
+Deployment release: what the team demo on the shared VPS needs in order to be reachable without
+also being exposed. No change to enrichment, retrieval, or the CRM adapters.
+
+### Added
+- `AUTH_EMAIL_ALLOWLIST` — comma-separated full addresses (`rep@example.com`) or domains
+  (`@example.com`), matched case-insensitively. Empty admits every Google account, which is right
+  for a local checkout and wrong for anything reachable from the internet, where the daily cost
+  guard would otherwise be the only thing between a stranger and the Gemini bill. The gate runs
+  before the user row is created, so a refused address leaves no trace in `users`. When a list is
+  configured it also requires Google's `email_verified` claim — a domain rule is only as
+  trustworthy as the claim it matches on.
+- `docs/DEPLOY.md` — the staging deploy end to end: the shared `bbspace_net` infrastructure it
+  joins, the nginx location block, first-deploy prerequisites, the verification checklist, and an
+  explicit "Not production" list. Records the outbound-egress requirement 010 introduced: the
+  liveness probe `HEAD`s **arbitrary publisher domains**, so the container needs general HTTPS
+  egress and not an allowlist of two Google hosts. Restricted egress makes citations vanish
+  silently, with no error shown to the user.
+- `GOOGLE_CLIENT_ID` in `.env.staging.example`, which it was missing entirely.
+
+### Changed
+- Deploy targets pull a branch on the server instead of rsyncing the working tree. rsync shipped
+  whatever happened to be on the operator's disk, including uncommitted edits, so the running demo
+  had no commit to point at. Pulling matches vanguard-game and makes the artifact reproducible.
+- Compose publishes both ports on `127.0.0.1`. Local dev reaches `localhost:8000` and `:8080`
+  exactly as before, but on a shared host the API is no longer an internet-facing FastAPI on port
+  8000 bypassing TLS and the reverse proxy — the web container and the shared nginx stack already
+  reach it over `bbspace_net`.
+- Deploy passes `--env-file`. `env_file:` only injects variables into a running container; it does
+  not feed `${VAR}` interpolation, and `VITE_GOOGLE_CLIENT_ID` is a **build arg** filled by
+  interpolation. Without this the web bundle builds with an empty client ID and the Google sign-in
+  button silently does nothing.
+- `AUTH_EMAIL_ALLOWLIST`, `ENCRYPTION_KEK` and the `RETRIEVAL_*` kill switch are threaded through
+  compose to the backend.
+
+### Fixed
+- The root logger had no handler, so every `logger.info` in app code was discarded. This was worse
+  than silence: Python's lastResort handler still prints WARNING and above, so failures shouted
+  while successes stayed quiet — exactly backwards for the `RETRIEVAL:` diagnostics, whose four
+  outcomes (`found` / `empty` / `disabled` / `no_key`) are all INFO. A brief that lost its citation
+  to blocked egress and a brief that correctly found nothing produced identical logs, which is the
+  one distinction a deploy needs to make.
+- SQL statements no longer log twice. `echo=settings.DEBUG` attaches SQLAlchemy's own handler to
+  `sqlalchemy.engine`, which still propagates, so giving root a handler doubled every line.
+  Propagation is muted only when echo is on — with echo off that logger has no handler of its own
+  and cutting propagation would swallow SQLAlchemy's warnings.
+
+
 ## [0.2.2] - 2026-08-15
 
 Feature 010 — a verifiable source for the buying signal. 009 made the buying-signal section real but
