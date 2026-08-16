@@ -15,7 +15,8 @@
   ],
   "host_permissions": [
     "http://localhost:8000/*",
-    "https://api.bdlead.app/*"
+    "https://api.bdlead.app/*",
+    "https://bb.bbross.net/*"
   ],
   "optional_host_permissions": [
     "http://*/*",

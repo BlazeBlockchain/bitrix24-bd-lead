@@ -273,21 +273,36 @@ through both and compare field by field.
 
 ## The extension against a deployed backend
 
-`extension/config.js` hardcodes `API_BASE = http://localhost:8000/api` and
-`WEB_BASE = http://localhost:8080`, and the file **is tracked by git** — so pointing it at
-the VPS for a demo would change it for local development too.
+Two separate things gate this, and fixing only one leaves the extension silently
+unable to call the API.
 
-For this demo it is handled as a **local, uncommitted edit**, not a commit:
+**1. Host permission — committed.** MV3 blocks any request to a host absent from
+`manifest.json`'s `host_permissions`, before CORS is ever consulted, so
+`https://bb.bbross.net/*` is listed there permanently. It sits alongside the localhost
+entry rather than replacing it, so local development is unaffected. Nothing needs doing
+here.
+
+**2. API base — a local, uncommitted edit.** `extension/config.js` hardcodes
+`API_BASE = http://localhost:8000/api` and `WEB_BASE = http://localhost:8080`, and the
+file **is tracked by git**, so committing a VPS value would repoint every developer's
+local extension:
 
 ```js
 const API_BASE = 'https://bb.bbross.net/bd-lead-staging/api';
 const WEB_BASE = 'https://bb.bbross.net/bd-lead-staging';
 ```
 
-Do not commit that. `git checkout extension/config.js` restores local development. If the
-extension ever needs to target both environments routinely, it needs a real configuration
-mechanism (the options page + `chrome.storage.local` pattern already used for
-`bd_google_client_id`) — that is a code change and a separate piece of work.
+Do not commit that. `git checkout extension/config.js` restores local development.
+
+The asymmetry is deliberate: a host permission is additive and inert until something
+actually calls that host, whereas `API_BASE` is a single value that must be either one
+environment or the other. If the extension ever needs to target both routinely it needs
+a real configuration mechanism (the options page + `chrome.storage.local` pattern
+already used for `bd_google_client_id`) — a code change and a separate piece of work.
+
+**3. `CORS_ORIGINS` on the server** must include `chrome-extension://<id>`, which is
+already set on staging. See the `.env.staging` checklist above for why an unset value
+is not permissive.
 
 The extension is buildless MV3, loaded unpacked. Reloading rules: manifest changes need a
 reload on the `chrome://extensions` card; panel/popup/options changes need the surface
